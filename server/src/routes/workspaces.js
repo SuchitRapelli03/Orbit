@@ -11,22 +11,32 @@ const router = Router();
 router.use(requireAuth);
 
 
-/*
-  GET ALL WORKSPACES
-*/
+// ============================================================
+// GET USER'S WORKSPACES
+// ============================================================
+
 router.get("/", async (req, res, next) => {
   try {
-    const workspaces = await Workspace.find({
-      members: req.user._id,
-    })
-      .populate("members", "name email")
-      .populate("owner", "name email")
-      .lean();
+    const workspaces =
+      await Workspace.find({
+        members: req.user._id,
+      })
+        .populate(
+          "members",
+          "name email"
+        )
+        .populate(
+          "owner",
+          "name email"
+        )
+        .lean();
 
     for (const workspace of workspaces) {
-      workspace.boards = await Board.find({
-        workspace: workspace._id,
-      }).lean();
+      workspace.boards =
+        await Board.find({
+          workspace:
+            workspace._id,
+        }).lean();
     }
 
     res.json({
@@ -38,168 +48,349 @@ router.get("/", async (req, res, next) => {
 });
 
 
-/*
-  CREATE WORKSPACE
-*/
-router.post("/", async (req, res, next) => {
-  try {
-    const name = req.body.name?.trim();
+// ============================================================
+// GET INVITATIONS FOR CURRENT USER
+// ============================================================
 
-    if (!name) {
-      return res.status(400).json({
-        message: "Workspace name is required",
-      });
-    }
+router.get(
+  "/invitations",
+  async (req, res, next) => {
+    try {
+      const email =
+        req.user.email
+          ?.trim()
+          .toLowerCase();
 
-    const workspace = await Workspace.create({
-      name,
-      owner: req.user._id,
-      members: [req.user._id],
-      invitations: [],
-    });
+      if (!email) {
+        return res.json({
+          invitations: [],
+        });
+      }
 
-    await Board.create({
-      workspace: workspace._id,
-      name: "Product Board",
-      members: [req.user._id],
-    });
-
-    const populatedWorkspace =
-      await Workspace.findById(workspace._id)
-        .populate("members", "name email")
-        .populate("owner", "name email")
-        .lean();
-
-    const boards = await Board.find({
-      workspace: workspace._id,
-    }).lean();
-
-    populatedWorkspace.boards = boards;
-
-    res.status(201).json({
-      workspace: populatedWorkspace,
-    });
-  } catch (error) {
-    next(error);
-  }
-});
-
-
-/*
-  GET SINGLE WORKSPACE
-*/
-router.get("/:workspaceId", async (req, res, next) => {
-  try {
-    const workspace =
-      await Workspace.findOne({
-        _id: req.params.workspaceId,
-        members: req.user._id,
-      })
-        .populate("members", "name email")
-        .populate("owner", "name email")
-        .lean();
-
-    if (!workspace) {
-      return res.status(404).json({
-        message: "Workspace not found",
-      });
-    }
-
-    const boards = await Board.find({
-      workspace: workspace._id,
-    }).lean();
-
-    workspace.boards = boards;
-
-    res.json({
-      workspace,
-    });
-  } catch (error) {
-    next(error);
-  }
-});
-
-
-/*
-  RENAME WORKSPACE
-  OWNER ONLY
-*/
-router.patch("/:workspaceId", async (req, res, next) => {
-  try {
-    const name = req.body.name?.trim();
-
-    if (!name) {
-      return res.status(400).json({
-        message: "Workspace name is required",
-      });
-    }
-
-    const workspace =
-      await Workspace.findOneAndUpdate(
-        {
-          _id: req.params.workspaceId,
-          owner: req.user._id,
-        },
-        {
-          $set: {
-            name,
+      const workspaces =
+        await Workspace.find({
+          invitations: {
+            $elemMatch: {
+              email,
+              status: "pending",
+            },
           },
-        },
-        {
-          new: true,
-          runValidators: true,
+        })
+          .populate(
+            "owner",
+            "name email"
+          )
+          .lean();
+
+      const invitations = [];
+
+      for (const workspace of workspaces) {
+        const matchingInvitations =
+          (
+            workspace.invitations ||
+            []
+          ).filter(
+            (invitation) =>
+              invitation.email
+                ?.trim()
+                .toLowerCase() ===
+                email &&
+              invitation.status ===
+                "pending"
+          );
+
+        for (
+          const invitation of
+            matchingInvitations
+        ) {
+          invitations.push({
+            invitationId:
+              invitation._id,
+
+            workspaceId:
+              workspace._id,
+
+            workspaceName:
+              workspace.name,
+
+            owner:
+              workspace.owner,
+
+            invitedAt:
+              invitation.invitedAt,
+          });
         }
-      )
-        .populate("members", "name email")
-        .populate("owner", "name email");
+      }
 
-    if (!workspace) {
-      return res.status(404).json({
-        message:
-          "Workspace not found or you are not the owner",
+      res.json({
+        invitations,
       });
+    } catch (error) {
+      next(error);
     }
-
-    const boards = await Board.find({
-      workspace: workspace._id,
-    }).lean();
-
-    const result = workspace.toObject();
-
-    result.boards = boards;
-
-    res.json({
-      message: "Workspace updated successfully",
-      workspace: result,
-    });
-  } catch (error) {
-    next(error);
   }
-});
+);
 
 
-/*
-  INVITE MEMBER
-  OWNER ONLY
-*/
+// ============================================================
+// CREATE WORKSPACE
+// ============================================================
+
+router.post(
+  "/",
+  async (req, res, next) => {
+    try {
+      const name =
+        req.body.name?.trim();
+
+      if (!name) {
+        return res.status(400).json({
+          message:
+            "Workspace name is required",
+        });
+      }
+
+      const workspace =
+        await Workspace.create({
+          name,
+          owner: req.user._id,
+          members: [req.user._id],
+          invitations: [],
+        });
+
+      await Board.create({
+        workspace:
+          workspace._id,
+
+        name: "Product Board",
+
+        members: [
+          req.user._id,
+        ],
+      });
+
+      const populatedWorkspace =
+        await Workspace.findById(
+          workspace._id
+        )
+          .populate(
+            "members",
+            "name email"
+          )
+          .populate(
+            "owner",
+            "name email"
+          )
+          .lean();
+
+      const boards =
+        await Board.find({
+          workspace:
+            workspace._id,
+        }).lean();
+
+      populatedWorkspace.boards =
+        boards;
+
+      res.status(201).json({
+        workspace:
+          populatedWorkspace,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+
+// ============================================================
+// GET SINGLE WORKSPACE
+// ============================================================
+
+router.get(
+  "/:workspaceId",
+  async (req, res, next) => {
+    try {
+      const workspace =
+        await Workspace.findOne({
+          _id:
+            req.params.workspaceId,
+
+          members:
+            req.user._id,
+        })
+          .populate(
+            "members",
+            "name email"
+          )
+          .populate(
+            "owner",
+            "name email"
+          )
+          .lean();
+
+      if (!workspace) {
+        return res.status(404).json({
+          message:
+            "Workspace not found",
+        });
+      }
+
+      const boards =
+        await Board.find({
+          workspace:
+            workspace._id,
+        }).lean();
+
+      workspace.boards =
+        boards;
+
+      res.json({
+        workspace,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+
+// ============================================================
+// RENAME WORKSPACE
+// OWNER ONLY
+// ============================================================
+
+router.patch(
+  "/:workspaceId",
+  async (req, res, next) => {
+    try {
+      const name =
+        req.body.name?.trim();
+
+      if (!name) {
+        return res.status(400).json({
+          message:
+            "Workspace name is required",
+        });
+      }
+
+      const workspace =
+        await Workspace.findOneAndUpdate(
+          {
+            _id:
+              req.params.workspaceId,
+
+            owner:
+              req.user._id,
+          },
+
+          {
+            $set: {
+              name,
+            },
+          },
+
+          {
+            new: true,
+            runValidators: true,
+          }
+        )
+          .populate(
+            "members",
+            "name email"
+          )
+          .populate(
+            "owner",
+            "name email"
+          );
+
+      if (!workspace) {
+        return res.status(404).json({
+          message:
+            "Workspace not found or you are not the owner",
+        });
+      }
+
+      const boards =
+        await Board.find({
+          workspace:
+            workspace._id,
+        }).lean();
+
+      const result =
+        workspace.toObject();
+
+      result.boards =
+        boards;
+
+      /*
+        ========================================================
+        REALTIME WORKSPACE UPDATE
+        ========================================================
+      */
+
+      const io =
+        req.app.get("io");
+
+      if (io) {
+        io
+          .to(
+            `workspace:${workspace._id}`
+          )
+          .emit(
+            "workspace:updated",
+            {
+              _id:
+                workspace._id,
+
+              name:
+                workspace.name,
+            }
+          );
+      }
+
+      res.json({
+        message:
+          "Workspace updated successfully",
+
+        workspace:
+          result,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+
+// ============================================================
+// INVITE MEMBER
+// OWNER ONLY
+// ============================================================
+
 router.post(
   "/:workspaceId/invitations",
   async (req, res, next) => {
     try {
-      const email = req.body.email
-        ?.trim()
-        .toLowerCase();
+      const email =
+        req.body.email
+          ?.trim()
+          .toLowerCase();
 
       if (!email) {
         return res.status(400).json({
-          message: "Email is required",
+          message:
+            "Email is required",
         });
       }
 
       const workspace =
         await Workspace.findOne({
-          _id: req.params.workspaceId,
-          owner: req.user._id,
+          _id:
+            req.params.workspaceId,
+
+          owner:
+            req.user._id,
         });
 
       if (!workspace) {
@@ -209,11 +400,6 @@ router.post(
         });
       }
 
-
-      /*
-        Check whether a user with this email
-        already exists and is already a member.
-      */
       const invitedUser =
         await User.findOne({
           email,
@@ -224,7 +410,9 @@ router.post(
           workspace.members.some(
             (memberId) =>
               String(memberId) ===
-              String(invitedUser._id)
+              String(
+                invitedUser._id
+              )
           );
 
         if (alreadyMember) {
@@ -235,16 +423,17 @@ router.post(
         }
       }
 
-
-      /*
-        Prevent duplicate pending invitations.
-      */
       const alreadyInvited =
-        (workspace.invitations || []).some(
+        (
+          workspace.invitations ||
+          []
+        ).some(
           (invitation) =>
-            invitation.email.toLowerCase() ===
+            invitation.email
+              .toLowerCase() ===
               email &&
-            invitation.status === "pending"
+            invitation.status ===
+              "pending"
         );
 
       if (alreadyInvited) {
@@ -254,10 +443,6 @@ router.post(
         });
       }
 
-
-      /*
-        Create invitation.
-      */
       workspace.invitations.push({
         email,
         status: "pending",
@@ -265,18 +450,47 @@ router.post(
 
       await workspace.save();
 
-
-      /*
-        Return the newly-created invitation.
-      */
       const invitation =
         workspace.invitations[
-          workspace.invitations.length - 1
+          workspace.invitations
+            .length - 1
         ];
+
+      /*
+        Optional realtime invitation
+        event for the invited user.
+      */
+
+      const io =
+        req.app.get("io");
+
+      if (io && invitedUser) {
+        io
+          .to(
+            `user:${invitedUser._id}`
+          )
+          .emit(
+            "invitation:new",
+            {
+              invitationId:
+                invitation._id,
+
+              workspaceId:
+                workspace._id,
+
+              workspaceName:
+                workspace.name,
+
+              invitedAt:
+                invitation.invitedAt,
+            }
+          );
+      }
 
       res.status(201).json({
         message:
           "Invitation created successfully",
+
         invitation,
       });
     } catch (error) {
@@ -286,18 +500,22 @@ router.post(
 );
 
 
-/*
-  GET INVITATIONS
-  OWNER ONLY
-*/
+// ============================================================
+// GET WORKSPACE INVITATIONS
+// OWNER ONLY
+// ============================================================
+
 router.get(
   "/:workspaceId/invitations",
   async (req, res, next) => {
     try {
       const workspace =
         await Workspace.findOne({
-          _id: req.params.workspaceId,
-          owner: req.user._id,
+          _id:
+            req.params.workspaceId,
+
+          owner:
+            req.user._id,
         }).lean();
 
       if (!workspace) {
@@ -309,7 +527,8 @@ router.get(
 
       res.json({
         invitations:
-          workspace.invitations || [],
+          workspace.invitations ||
+          [],
       });
     } catch (error) {
       next(error);
@@ -318,18 +537,22 @@ router.get(
 );
 
 
-/*
-  REMOVE MEMBER
-  OWNER ONLY
-*/
+// ============================================================
+// REMOVE MEMBER
+// OWNER ONLY
+// ============================================================
+
 router.delete(
   "/:workspaceId/members/:memberId",
   async (req, res, next) => {
     try {
       const workspace =
         await Workspace.findOne({
-          _id: req.params.workspaceId,
-          owner: req.user._id,
+          _id:
+            req.params.workspaceId,
+
+          owner:
+            req.user._id,
         });
 
       if (!workspace) {
@@ -339,12 +562,10 @@ router.delete(
         });
       }
 
-
-      /*
-        Owner cannot remove themselves.
-      */
       if (
-        String(req.params.memberId) ===
+        String(
+          req.params.memberId
+        ) ===
         String(req.user._id)
       ) {
         return res.status(400).json({
@@ -353,29 +574,45 @@ router.delete(
         });
       }
 
-
       const isMember =
         workspace.members.some(
           (memberId) =>
             String(memberId) ===
-            String(req.params.memberId)
+            String(
+              req.params.memberId
+            )
         );
 
       if (!isMember) {
         return res.status(404).json({
-          message: "Member not found",
+          message:
+            "Member not found",
         });
       }
-
 
       workspace.members =
         workspace.members.filter(
           (memberId) =>
             String(memberId) !==
-            String(req.params.memberId)
+            String(
+              req.params.memberId
+            )
         );
 
       await workspace.save();
+
+      await Board.updateMany(
+        {
+          workspace:
+            workspace._id,
+        },
+        {
+          $pull: {
+            members:
+              req.params.memberId,
+          },
+        }
+      );
 
       res.json({
         message:
@@ -388,9 +625,10 @@ router.delete(
 );
 
 
-/*
-  JOIN WORKSPACE
-*/
+// ============================================================
+// ACCEPT / JOIN WORKSPACE
+// ============================================================
+
 router.post(
   "/:workspaceId/join",
   async (req, res, next) => {
@@ -402,7 +640,8 @@ router.post(
 
       if (!workspace) {
         return res.status(404).json({
-          message: "Workspace not found",
+          message:
+            "Workspace not found",
         });
       }
 
@@ -412,12 +651,17 @@ router.post(
           .toLowerCase();
 
       const invite =
-        (workspace.invitations || []).find(
+        (
+          workspace.invitations ||
+          []
+        ).find(
           (invitation) =>
             invitation.email
               .trim()
-              .toLowerCase() === email &&
-            invitation.status === "pending"
+              .toLowerCase() ===
+              email &&
+            invitation.status ===
+              "pending"
         );
 
       if (!invite) {
@@ -427,7 +671,8 @@ router.post(
         });
       }
 
-      invite.status = "accepted";
+      invite.status =
+        "accepted";
 
       const alreadyMember =
         workspace.members.some(
@@ -444,9 +689,108 @@ router.post(
 
       await workspace.save();
 
+      await Board.updateMany(
+        {
+          workspace:
+            workspace._id,
+        },
+        {
+          $addToSet: {
+            members:
+              req.user._id,
+          },
+        }
+      );
+
+      /*
+        Notify workspace users that
+        membership changed.
+      */
+
+      const io =
+        req.app.get("io");
+
+      if (io) {
+        io
+          .to(
+            `workspace:${workspace._id}`
+          )
+          .emit(
+            "workspace:member-updated",
+            {
+              workspaceId:
+                workspace._id,
+
+              userId:
+                req.user._id,
+            }
+          );
+      }
+
       res.json({
         message:
           "Joined workspace successfully",
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+
+// ============================================================
+// DECLINE INVITATION
+// ============================================================
+
+router.post(
+  "/:workspaceId/invitations/:invitationId/decline",
+  async (req, res, next) => {
+    try {
+      const workspace =
+        await Workspace.findById(
+          req.params.workspaceId
+        );
+
+      if (!workspace) {
+        return res.status(404).json({
+          message:
+            "Workspace not found",
+        });
+      }
+
+      const email =
+        req.user.email
+          ?.trim()
+          .toLowerCase();
+
+      const invitation =
+        workspace.invitations.id(
+          req.params.invitationId
+        );
+
+      if (
+        !invitation ||
+        invitation.email
+          ?.trim()
+          .toLowerCase() !==
+          email ||
+        invitation.status !==
+          "pending"
+      ) {
+        return res.status(403).json({
+          message:
+            "Invitation not found or already processed",
+        });
+      }
+
+      invitation.status =
+        "declined";
+
+      await workspace.save();
+
+      res.json({
+        message:
+          "Invitation declined",
       });
     } catch (error) {
       next(error);

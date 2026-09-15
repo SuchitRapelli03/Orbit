@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Link, useNavigate, useParams } from "react-router-dom";
+
 import {
   ArrowLeft,
   Settings,
@@ -8,48 +8,69 @@ import {
   Trash2,
   Save,
   FolderKanban,
-  RefreshCw,
+  LayoutDashboard,
+  LogOut,
+  UserPlus,
+  Shield,
+  Clock,
 } from "lucide-react";
 
+import {
+  useNavigate,
+  useParams,
+} from "react-router-dom";
+
 import api from "../lib/api";
+
 import { useOrbitStore } from "../store/useOrbitStore";
 
 export default function WorkspaceSettings() {
   const { workspaceId } = useParams();
   const navigate = useNavigate();
 
-  const user = useOrbitStore((s) => s.user);
-  const setWorkspace = useOrbitStore(
-    (s) => s.setWorkspace
+  const user = useOrbitStore(
+    (state) => state.user
   );
 
-  const [workspace, setLocalWorkspace] =
+  const setWorkspaceStore =
+    useOrbitStore(
+      (state) => state.setWorkspace
+    );
+
+  const [workspace, setWorkspace] =
     useState(null);
 
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
 
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
-  const [inviting, setInviting] = useState(false);
-  const [refreshing, setRefreshing] =
+  const [loading, setLoading] =
+    useState(true);
+
+  const [saving, setSaving] =
     useState(false);
 
+  const [inviting, setInviting] =
+    useState(false);
 
-  /*
-    Current logged-in user ID.
-  */
-  const currentUserId =
-    user?._id ||
-    user?.id ||
-    null;
+  const [activeSection, setActiveSection] =
+    useState("general");
 
+  const [message, setMessage] =
+    useState("");
 
-  /*
-    Load workspace.
-  */
+  const [messageType, setMessageType] =
+    useState("success");
+
+  /* =========================================================
+     LOAD WORKSPACE
+  ========================================================= */
+
   useEffect(() => {
-    if (!localStorage.getItem("orbit_token")) {
+    if (
+      !localStorage.getItem(
+        "orbit_token"
+      )
+    ) {
       navigate("/login");
       return;
     }
@@ -57,16 +78,9 @@ export default function WorkspaceSettings() {
     loadWorkspace();
   }, [workspaceId, navigate]);
 
-
-  async function loadWorkspace(
-    showRefresh = false
-  ) {
+  async function loadWorkspace() {
     try {
-      if (showRefresh) {
-        setRefreshing(true);
-      } else {
-        setLoading(true);
-      }
+      setLoading(true);
 
       const { data } = await api.get(
         `/workspaces/${workspaceId}`
@@ -75,7 +89,7 @@ export default function WorkspaceSettings() {
       const loadedWorkspace =
         data.workspace;
 
-      setLocalWorkspace(
+      setWorkspace(
         loadedWorkspace
       );
 
@@ -83,11 +97,7 @@ export default function WorkspaceSettings() {
         loadedWorkspace.name || ""
       );
 
-      /*
-        Keep global Zustand workspace
-        synchronized with the latest data.
-      */
-      setWorkspace(
+      setWorkspaceStore(
         loadedWorkspace
       );
     } catch (error) {
@@ -96,58 +106,74 @@ export default function WorkspaceSettings() {
         error
       );
 
-      alert(
+      showMessage(
         error.response?.data?.message ||
-          "Failed to load workspace"
+          "Failed to load workspace",
+        "error"
       );
 
       navigate("/dashboard");
     } finally {
       setLoading(false);
-      setRefreshing(false);
     }
   }
 
+  /* =========================================================
+     OWNER CHECK
+  ========================================================= */
 
-  /*
-    Workspace owner ID.
-  */
+  const currentUserId =
+    user?._id ||
+    user?.id ||
+    null;
+
   const ownerId =
     workspace?.owner?._id ||
     workspace?.owner?.id ||
     workspace?.owner ||
     null;
 
-
-  /*
-    Owner check.
-  */
   const isOwner =
     currentUserId &&
     ownerId &&
     String(currentUserId) ===
       String(ownerId);
 
+  /* =========================================================
+     MESSAGE
+  ========================================================= */
 
-  /*
-    SAVE WORKSPACE NAME
-  */
-  async function saveWorkspace(e) {
-    e.preventDefault();
+  function showMessage(
+    text,
+    type = "success"
+  ) {
+    setMessage(text);
+    setMessageType(type);
 
-    const trimmedName =
-      name.trim();
+    setTimeout(() => {
+      setMessage("");
+    }, 3500);
+  }
 
-    if (!trimmedName) {
-      alert(
-        "Workspace name is required."
+  /* =========================================================
+     SAVE WORKSPACE
+  ========================================================= */
+
+  async function saveWorkspace(event) {
+    event.preventDefault();
+
+    if (!name.trim()) {
+      showMessage(
+        "Workspace name is required.",
+        "error"
       );
       return;
     }
 
     if (!isOwner) {
-      alert(
-        "Only the workspace owner can change the workspace name."
+      showMessage(
+        "Only the workspace owner can change the workspace name.",
+        "error"
       );
       return;
     }
@@ -159,32 +185,28 @@ export default function WorkspaceSettings() {
         await api.patch(
           `/workspaces/${workspaceId}`,
           {
-            name: trimmedName,
+            name: name.trim(),
           }
         );
 
-      const updatedWorkspace =
-        data.workspace;
+      const updatedWorkspace = {
+        ...workspace,
+        name: data.workspace.name,
+      };
 
-      /*
-        Update this page.
-      */
-      setLocalWorkspace(
-        updatedWorkspace
-      );
-
-      setName(
-        updatedWorkspace.name
-      );
-
-      /*
-        Update global workspace.
-      */
       setWorkspace(
         updatedWorkspace
       );
 
-      alert(
+      setWorkspaceStore(
+        updatedWorkspace
+      );
+
+      setName(
+        data.workspace.name
+      );
+
+      showMessage(
         "Workspace name updated successfully."
       );
     } catch (error) {
@@ -193,35 +215,35 @@ export default function WorkspaceSettings() {
         error
       );
 
-      alert(
+      showMessage(
         error.response?.data?.message ||
-          "Failed to update workspace"
+          "Failed to update workspace",
+        "error"
       );
     } finally {
       setSaving(false);
     }
   }
 
+  /* =========================================================
+     INVITE MEMBER
+  ========================================================= */
 
-  /*
-    INVITE MEMBER
-  */
-  async function inviteMember(e) {
-    e.preventDefault();
+  async function inviteMember(event) {
+    event.preventDefault();
 
-    const trimmedEmail =
-      email.trim().toLowerCase();
-
-    if (!trimmedEmail) {
-      alert(
-        "Please enter an email address."
+    if (!email.trim()) {
+      showMessage(
+        "Please enter an email address.",
+        "error"
       );
       return;
     }
 
     if (!isOwner) {
-      alert(
-        "Only the workspace owner can invite members."
+      showMessage(
+        "Only the workspace owner can invite members.",
+        "error"
       );
       return;
     }
@@ -229,22 +251,31 @@ export default function WorkspaceSettings() {
     try {
       setInviting(true);
 
-      await api.post(
-        `/workspaces/${workspaceId}/invitations`,
-        {
-          email: trimmedEmail,
-        }
+      const { data } =
+        await api.post(
+          `/workspaces/${workspaceId}/invitations`,
+          {
+            email:
+              email
+                .trim()
+                .toLowerCase(),
+          }
+        );
+
+      setWorkspace(
+        (current) => ({
+          ...current,
+          invitations: [
+            ...(current.invitations ||
+              []),
+            data.invitation,
+          ],
+        })
       );
 
       setEmail("");
 
-      /*
-        Reload from MongoDB instead of
-        relying only on local state.
-      */
-      await loadWorkspace(true);
-
-      alert(
+      showMessage(
         "Invitation created successfully."
       );
     } catch (error) {
@@ -253,25 +284,27 @@ export default function WorkspaceSettings() {
         error
       );
 
-      alert(
+      showMessage(
         error.response?.data?.message ||
-          "Failed to invite member"
+          "Failed to invite member",
+        "error"
       );
     } finally {
       setInviting(false);
     }
   }
 
+  /* =========================================================
+     REMOVE MEMBER
+  ========================================================= */
 
-  /*
-    REMOVE MEMBER
-  */
   async function removeMember(
     memberId
   ) {
     if (!isOwner) {
-      alert(
-        "Only the workspace owner can remove members."
+      showMessage(
+        "Only the workspace owner can remove members.",
+        "error"
       );
       return;
     }
@@ -281,18 +314,33 @@ export default function WorkspaceSettings() {
         "Are you sure you want to remove this member from the workspace?"
       );
 
-    if (!confirmed) {
-      return;
-    }
+    if (!confirmed) return;
 
     try {
       await api.delete(
         `/workspaces/${workspaceId}/members/${memberId}`
       );
 
-      await loadWorkspace(true);
+      const updatedWorkspace = {
+        ...workspace,
+        members:
+          workspace.members.filter(
+            (member) =>
+              String(
+                member._id
+              ) !== String(memberId)
+          ),
+      };
 
-      alert(
+      setWorkspace(
+        updatedWorkspace
+      );
+
+      setWorkspaceStore(
+        updatedWorkspace
+      );
+
+      showMessage(
         "Member removed successfully."
       );
     } catch (error) {
@@ -301,489 +349,713 @@ export default function WorkspaceSettings() {
         error
       );
 
-      alert(
+      showMessage(
         error.response?.data?.message ||
-          "Failed to remove member"
+          "Failed to remove member",
+        "error"
       );
     }
   }
 
+  /* =========================================================
+     LOGOUT
+  ========================================================= */
 
-  /*
-    Loading screen.
-  */
+  function logout() {
+    localStorage.removeItem(
+      "orbit_token"
+    );
+
+    localStorage.removeItem(
+      "orbit_user"
+    );
+
+    setWorkspaceStore(null);
+
+    navigate("/login");
+  }
+
+  /* =========================================================
+     LOADING
+  ========================================================= */
+
   if (loading) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-slate-100">
-        <p className="text-slate-500">
+      <div className="flex min-h-screen items-center justify-center bg-slate-950 text-white">
+        <div className="flex items-center gap-3 text-slate-400">
+          <div className="h-2 w-2 animate-pulse rounded-full bg-indigo-500" />
           Loading workspace settings...
-        </p>
+        </div>
       </div>
     );
   }
-
 
   if (!workspace) {
     return null;
   }
 
+  /* =========================================================
+     UI
+  ========================================================= */
 
   return (
-    <div className="min-h-screen bg-slate-100">
+    <div className="flex min-h-screen bg-slate-950 text-white">
+      {/* =====================================================
+          SIDEBAR
+      ===================================================== */}
 
-      {/* HEADER */}
+      <aside className="hidden w-72 shrink-0 flex-col border-r border-slate-800 bg-slate-900 lg:flex">
+        {/* BRAND */}
 
-      <header className="border-b bg-white">
-
-        <div className="mx-auto flex max-w-5xl items-center justify-between px-6 py-5">
-
-          <div className="flex items-center gap-4">
-
-            <Link
-              to="/dashboard"
-              className="rounded-xl p-2 transition hover:bg-slate-100"
-              title="Back to Dashboard"
-            >
-              <ArrowLeft size={20} />
-            </Link>
+        <div className="border-b border-slate-800 px-6 py-5">
+          <div className="flex items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-indigo-600 font-bold">
+              O
+            </div>
 
             <div>
+              <h1 className="text-xl font-bold">
+                Orbit
+              </h1>
 
-              <p className="text-sm text-slate-400">
+              <p className="text-xs text-slate-500">
+                Collaborative Workspace
+              </p>
+            </div>
+          </div>
+        </div>
+
+        {/* WORKSPACE */}
+
+        <div className="border-b border-slate-800 p-4">
+          <p className="mb-2 px-2 text-[11px] font-semibold uppercase tracking-wider text-slate-500">
+            Workspace
+          </p>
+
+          <div className="flex items-center gap-3 rounded-xl bg-slate-800 px-3 py-3">
+            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-indigo-500/15 text-indigo-400">
+              <FolderKanban size={18} />
+            </div>
+
+            <div className="min-w-0">
+              <p className="truncate text-sm font-semibold">
+                {workspace.name}
+              </p>
+
+              <p className="text-xs text-slate-500">
+                Workspace
+              </p>
+            </div>
+          </div>
+        </div>
+
+        {/* NAVIGATION */}
+
+        <nav className="space-y-1 px-4 py-5">
+          <button
+            onClick={() =>
+              navigate("/dashboard")
+            }
+            className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm text-slate-400 transition hover:bg-slate-800 hover:text-white"
+          >
+            <LayoutDashboard size={18} />
+            Dashboard
+          </button>
+
+          <button
+            onClick={() =>
+              navigate("/dashboard")
+            }
+            className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm text-slate-400 transition hover:bg-slate-800 hover:text-white"
+          >
+            <FolderKanban size={18} />
+            Boards
+          </button>
+
+          <button
+            className="flex w-full items-center gap-3 rounded-lg bg-indigo-600/15 px-3 py-2.5 text-sm font-medium text-indigo-400"
+          >
+            <Settings size={18} />
+            Workspace Settings
+          </button>
+        </nav>
+
+        {/* USER */}
+
+        <div className="mt-auto border-t border-slate-800 p-4">
+          <div className="flex items-center gap-3">
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-indigo-600 font-semibold">
+              {user?.name
+                ?.charAt(0)
+                ?.toUpperCase() ||
+                "U"}
+            </div>
+
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-sm font-medium">
+                {user?.name ||
+                  "User"}
+              </p>
+
+              <p className="truncate text-xs text-slate-500">
+                {user?.email || ""}
+              </p>
+            </div>
+
+            <button
+              onClick={logout}
+              className="rounded-lg p-2 text-slate-500 transition hover:bg-slate-800 hover:text-red-400"
+            >
+              <LogOut size={17} />
+            </button>
+          </div>
+        </div>
+      </aside>
+
+      {/* =====================================================
+          MAIN
+      ===================================================== */}
+
+      <main className="min-w-0 flex-1">
+        {/* HEADER */}
+
+        <header className="border-b border-slate-800 bg-slate-950">
+          <div className="flex items-center gap-4 px-5 py-5 lg:px-8">
+            <button
+              onClick={() =>
+                navigate("/dashboard")
+              }
+              className="rounded-xl border border-slate-800 bg-slate-900 p-2.5 text-slate-400 transition hover:bg-slate-800 hover:text-white"
+              title="Back to Dashboard"
+            >
+              <ArrowLeft size={18} />
+            </button>
+
+            <div>
+              <p className="text-xs font-medium uppercase tracking-wider text-slate-500">
                 Workspace Settings
               </p>
 
-              <h1 className="text-2xl font-black">
+              <h1 className="mt-1 text-2xl font-bold">
                 {workspace.name}
               </h1>
-
             </div>
-
           </div>
-
-
-          <button
-            type="button"
-            onClick={() =>
-              loadWorkspace(true)
-            }
-            disabled={refreshing}
-            className="flex h-10 w-10 items-center justify-center rounded-xl bg-slate-900 text-white transition hover:bg-slate-800 disabled:opacity-50"
-            title="Refresh workspace"
-          >
-            <RefreshCw
-              size={19}
-              className={
-                refreshing
-                  ? "animate-spin"
-                  : ""
-              }
-            />
-          </button>
-
-        </div>
-
-      </header>
-
-
-      {/* MAIN */}
-
-      <main className="mx-auto max-w-5xl space-y-6 p-6">
-
-
-        {/* GENERAL SETTINGS */}
-
-        <section className="rounded-2xl border bg-white p-6 shadow-sm">
-
-          <div className="mb-6 flex items-start gap-4">
-
-            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-slate-100">
-              <Settings size={21} />
-            </div>
-
-            <div>
-
-              <h2 className="text-xl font-bold">
-                General Settings
-              </h2>
-
-              <p className="mt-1 text-sm text-slate-500">
-                Manage basic workspace information.
-              </p>
-
-            </div>
-
-          </div>
-
-
-          <form
-            onSubmit={saveWorkspace}
-            className="max-w-xl"
-          >
-
-            <label className="mb-2 block text-sm font-semibold">
-              Workspace Name
-            </label>
-
-
-            <div className="flex gap-3">
-
-              <input
-                value={name}
-                onChange={(e) =>
-                  setName(
-                    e.target.value
-                  )
-                }
-                disabled={!isOwner}
-                className="flex-1 rounded-xl border px-4 py-3 outline-none transition focus:border-slate-400 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500"
-              />
-
-
-              {isOwner && (
-                <button
-                  type="submit"
-                  disabled={saving}
-                  className="flex items-center gap-2 rounded-xl bg-slate-900 px-5 font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
-                >
-
-                  <Save size={17} />
-
-                  {saving
-                    ? "Saving..."
-                    : "Save"}
-
-                </button>
-              )}
-
-            </div>
-
-
-            {!isOwner && (
-              <p className="mt-2 text-xs text-slate-400">
-                Only the workspace owner can edit
-                workspace settings.
-              </p>
-            )}
-
-          </form>
-
-        </section>
-
-
-        {/* MEMBERS */}
-
-        <section className="rounded-2xl border bg-white p-6 shadow-sm">
-
-          <div className="mb-6 flex items-start gap-4">
-
-            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-slate-100">
-              <Users size={21} />
-            </div>
-
-            <div>
-
-              <h2 className="text-xl font-bold">
-                Members
-              </h2>
-
-              <p className="mt-1 text-sm text-slate-500">
-                People who have access to this workspace.
-              </p>
-
-            </div>
-
-          </div>
-
-
-          {workspace.members?.length ? (
-
-            <div className="space-y-3">
-
-              {workspace.members.map(
-                (member) => {
-
-                  const memberId =
-                    member._id ||
-                    member.id;
-
-                  const memberIsOwner =
-                    String(memberId) ===
-                    String(ownerId);
-
-                  return (
-                    <div
-                      key={memberId}
-                      className="flex items-center justify-between rounded-xl border p-4"
-                    >
-
-                      <div className="flex min-w-0 items-center gap-3">
-
-                        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-slate-900 font-bold text-white">
-                          {member.name
-                            ?.charAt(0)
-                            ?.toUpperCase() ||
-                            "U"}
-                        </div>
-
-                        <div className="min-w-0">
-
-                          <p className="truncate font-semibold">
-                            {member.name ||
-                              "Unknown User"}
-                          </p>
-
-                          <p className="truncate text-sm text-slate-500">
-                            {member.email ||
-                              ""}
-                          </p>
-
-                        </div>
-
-                      </div>
-
-
-                      <div className="ml-4 flex shrink-0 items-center gap-3">
-
-                        {memberIsOwner ? (
-
-                          <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600">
-                            Owner
-                          </span>
-
-                        ) : isOwner ? (
-
-                          <button
-                            type="button"
-                            onClick={() =>
-                              removeMember(
-                                memberId
-                              )
-                            }
-                            className="rounded-lg p-2 text-red-500 transition hover:bg-red-50"
-                            title="Remove member"
-                          >
-                            <Trash2
-                              size={17}
-                            />
-                          </button>
-
-                        ) : null}
-
-                      </div>
-
-                    </div>
-                  );
-                }
-              )}
-
-            </div>
-
-          ) : (
-
-            <p className="rounded-xl bg-slate-50 p-5 text-sm text-slate-500">
-              No members found.
-            </p>
-
-          )}
-
-        </section>
-
-
-        {/* INVITE */}
-
-        {isOwner && (
-          <section className="rounded-2xl border bg-white p-6 shadow-sm">
-
-            <div className="mb-6 flex items-start gap-4">
-
-              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-slate-100">
-                <Mail size={21} />
-              </div>
-
-              <div>
-
-                <h2 className="text-xl font-bold">
-                  Invite Team Member
-                </h2>
-
-                <p className="mt-1 text-sm text-slate-500">
-                  Create an invitation for another
-                  Orbit user.
-                </p>
-
-              </div>
-
-            </div>
-
-
-            <form
-              onSubmit={inviteMember}
-              className="flex max-w-xl gap-3"
+        </header>
+
+        {/* MESSAGE */}
+
+        {message && (
+          <div className="fixed right-5 top-5 z-50">
+            <div
+              className={`rounded-xl border px-4 py-3 text-sm shadow-2xl ${
+                messageType ===
+                "error"
+                  ? "border-red-500/20 bg-red-500/10 text-red-400"
+                  : "border-emerald-500/20 bg-emerald-500/10 text-emerald-400"
+              }`}
             >
-
-              <input
-                type="email"
-                placeholder="team-member@example.com"
-                value={email}
-                onChange={(e) =>
-                  setEmail(
-                    e.target.value
-                  )
-                }
-                className="flex-1 rounded-xl border px-4 py-3 outline-none focus:border-slate-400"
-              />
-
-
-              <button
-                type="submit"
-                disabled={inviting}
-                className="rounded-xl bg-slate-900 px-5 font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                {inviting
-                  ? "Inviting..."
-                  : "Invite"}
-              </button>
-
-            </form>
-
-
-            <p className="mt-3 text-xs text-slate-400">
-              The invitation is stored in Orbit.
-              Email delivery will be added later.
-            </p>
-
-          </section>
+              {message}
+            </div>
+          </div>
         )}
 
+        <div className="mx-auto max-w-6xl p-5 lg:p-8">
+          {/* INTRO */}
 
-        {/* INVITATIONS */}
+          <div className="mb-8">
+            <p className="text-sm text-slate-500">
+              Manage your workspace,
+              members and invitations.
+            </p>
+          </div>
 
-        {isOwner &&
-          workspace.invitations?.length >
-            0 && (
+          {/* =================================================
+              SETTINGS NAV
+          ================================================= */}
 
-            <section className="rounded-2xl border bg-white p-6 shadow-sm">
+          <div className="mb-6 flex gap-2 overflow-x-auto rounded-xl border border-slate-800 bg-slate-900 p-1.5">
+            <button
+              onClick={() =>
+                setActiveSection(
+                  "general"
+                )
+              }
+              className={`flex items-center gap-2 whitespace-nowrap rounded-lg px-4 py-2.5 text-sm font-medium transition ${
+                activeSection ===
+                "general"
+                  ? "bg-indigo-600 text-white"
+                  : "text-slate-400 hover:bg-slate-800 hover:text-white"
+              }`}
+            >
+              <Settings size={16} />
+              General
+            </button>
 
-              <div className="mb-5">
+            <button
+              onClick={() =>
+                setActiveSection(
+                  "members"
+                )
+              }
+              className={`flex items-center gap-2 whitespace-nowrap rounded-lg px-4 py-2.5 text-sm font-medium transition ${
+                activeSection ===
+                "members"
+                  ? "bg-indigo-600 text-white"
+                  : "text-slate-400 hover:bg-slate-800 hover:text-white"
+              }`}
+            >
+              <Users size={16} />
+              Members
+            </button>
 
-                <h2 className="text-xl font-bold">
-                  Invitations
-                </h2>
+            {isOwner && (
+              <button
+                onClick={() =>
+                  setActiveSection(
+                    "invitations"
+                  )
+                }
+                className={`flex items-center gap-2 whitespace-nowrap rounded-lg px-4 py-2.5 text-sm font-medium transition ${
+                  activeSection ===
+                  "invitations"
+                    ? "bg-indigo-600 text-white"
+                    : "text-slate-400 hover:bg-slate-800 hover:text-white"
+                }`}
+              >
+                <Mail size={16} />
+                Invitations
+              </button>
+            )}
+          </div>
 
-                <p className="mt-1 text-sm text-slate-500">
-                  Invitations sent from this workspace.
-                </p>
+          {/* =================================================
+              GENERAL
+          ================================================= */}
 
+          {activeSection ===
+            "general" && (
+            <div className="space-y-5">
+              <section className="rounded-2xl border border-slate-800 bg-slate-900 p-6">
+                <div className="mb-6 flex items-start gap-4">
+                  <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-indigo-500/10 text-indigo-400">
+                    <Settings
+                      size={21}
+                    />
+                  </div>
+
+                  <div>
+                    <h2 className="text-lg font-bold">
+                      General Settings
+                    </h2>
+
+                    <p className="mt-1 text-sm text-slate-500">
+                      Manage basic workspace
+                      information.
+                    </p>
+                  </div>
+                </div>
+
+                <form
+                  onSubmit={
+                    saveWorkspace
+                  }
+                  className="max-w-2xl"
+                >
+                  <label className="mb-2 block text-sm font-medium text-slate-300">
+                    Workspace Name
+                  </label>
+
+                  <div className="flex gap-3">
+                    <input
+                      value={name}
+                      onChange={(e) =>
+                        setName(
+                          e.target.value
+                        )
+                      }
+                      disabled={
+                        !isOwner
+                      }
+                      className="min-w-0 flex-1 rounded-xl border border-slate-800 bg-slate-950 px-4 py-3 text-sm text-white outline-none transition placeholder:text-slate-600 focus:border-indigo-500 disabled:cursor-not-allowed disabled:opacity-50"
+                    />
+
+                    {isOwner && (
+                      <button
+                        type="submit"
+                        disabled={
+                          saving
+                        }
+                        className="flex shrink-0 items-center gap-2 rounded-xl bg-indigo-600 px-5 text-sm font-semibold transition hover:bg-indigo-500 disabled:opacity-50"
+                      >
+                        <Save
+                          size={17}
+                        />
+
+                        {saving
+                          ? "Saving..."
+                          : "Save"}
+                      </button>
+                    )}
+                  </div>
+
+                  {!isOwner && (
+                    <p className="mt-3 text-xs text-slate-600">
+                      Only the workspace
+                      owner can edit
+                      workspace settings.
+                    </p>
+                  )}
+                </form>
+              </section>
+
+              {/* WORKSPACE INFO */}
+
+              <section className="grid gap-4 md:grid-cols-3">
+                <div className="rounded-2xl border border-slate-800 bg-slate-900 p-5">
+                  <div className="mb-4 flex h-10 w-10 items-center justify-center rounded-xl bg-indigo-500/10 text-indigo-400">
+                    <Users size={19} />
+                  </div>
+
+                  <p className="text-sm text-slate-500">
+                    Members
+                  </p>
+
+                  <p className="mt-1 text-3xl font-bold">
+                    {workspace.members
+                      ?.length ||
+                      0}
+                  </p>
+                </div>
+
+                <div className="rounded-2xl border border-slate-800 bg-slate-900 p-5">
+                  <div className="mb-4 flex h-10 w-10 items-center justify-center rounded-xl bg-indigo-500/10 text-indigo-400">
+                    <FolderKanban
+                      size={19}
+                    />
+                  </div>
+
+                  <p className="text-sm text-slate-500">
+                    Boards
+                  </p>
+
+                  <p className="mt-1 text-3xl font-bold">
+                    {workspace.boards
+                      ?.length ||
+                      0}
+                  </p>
+                </div>
+
+                <div className="rounded-2xl border border-slate-800 bg-slate-900 p-5">
+                  <div className="mb-4 flex h-10 w-10 items-center justify-center rounded-xl bg-indigo-500/10 text-indigo-400">
+                    <Shield size={19} />
+                  </div>
+
+                  <p className="text-sm text-slate-500">
+                    Your role
+                  </p>
+
+                  <p className="mt-1 text-xl font-bold">
+                    {isOwner
+                      ? "Owner"
+                      : "Member"}
+                  </p>
+                </div>
+              </section>
+            </div>
+          )}
+
+          {/* =================================================
+              MEMBERS
+          ================================================= */}
+
+          {activeSection ===
+            "members" && (
+            <section className="rounded-2xl border border-slate-800 bg-slate-900 p-6">
+              <div className="mb-6 flex items-start justify-between gap-4">
+                <div className="flex items-start gap-4">
+                  <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-indigo-500/10 text-indigo-400">
+                    <Users size={21} />
+                  </div>
+
+                  <div>
+                    <h2 className="text-lg font-bold">
+                      Team Members
+                    </h2>
+
+                    <p className="mt-1 text-sm text-slate-500">
+                      People who have access
+                      to this workspace.
+                    </p>
+                  </div>
+                </div>
+
+                <span className="rounded-full bg-slate-800 px-3 py-1 text-xs font-semibold text-slate-400">
+                  {workspace.members
+                    ?.length ||
+                    0}{" "}
+                  members
+                </span>
               </div>
-
 
               <div className="space-y-3">
+                {workspace.members?.map(
+                  (member) => {
+                    const memberId =
+                      member._id ||
+                      member.id;
 
-                {workspace.invitations.map(
-                  (invitation) => (
+                    const memberIsOwner =
+                      String(
+                        memberId
+                      ) ===
+                      String(ownerId);
 
-                    <div
-                      key={
-                        invitation._id
-                      }
-                      className="flex items-center justify-between rounded-xl border p-4"
-                    >
-
-                      <div>
-
-                        <p className="font-medium">
-                          {
-                            invitation.email
-                          }
-                        </p>
-
-                        <p className="mt-1 text-xs text-slate-400">
-                          {invitation.invitedAt
-                            ? new Date(
-                                invitation.invitedAt
-                              ).toLocaleString()
-                            : ""}
-                        </p>
-
-                      </div>
-
-
-                      <span
-                        className={`rounded-full px-3 py-1 text-xs font-semibold ${
-                          invitation.status ===
-                          "accepted"
-                            ? "bg-green-100 text-green-700"
-                            : invitation.status ===
-                              "declined"
-                            ? "bg-red-100 text-red-700"
-                            : "bg-yellow-100 text-yellow-700"
-                        }`}
-                      >
-                        {
-                          invitation.status
+                    return (
+                      <div
+                        key={
+                          memberId
                         }
-                      </span>
+                        className="flex items-center justify-between gap-4 rounded-xl border border-slate-800 bg-slate-950/50 p-4 transition hover:border-slate-700"
+                      >
+                        <div className="flex min-w-0 items-center gap-3">
+                          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-indigo-600 font-semibold">
+                            {member.name
+                              ?.charAt(
+                                0
+                              )
+                              ?.toUpperCase() ||
+                              "U"}
+                          </div>
 
-                    </div>
+                          <div className="min-w-0">
+                            <p className="truncate text-sm font-semibold text-slate-200">
+                              {member.name ||
+                                "Unknown User"}
+                            </p>
 
-                  )
+                            <p className="truncate text-xs text-slate-500">
+                              {member.email ||
+                                ""}
+                            </p>
+                          </div>
+                        </div>
+
+                        <div className="flex shrink-0 items-center gap-3">
+                          {memberIsOwner ? (
+                            <span className="flex items-center gap-1.5 rounded-full bg-indigo-500/10 px-3 py-1.5 text-xs font-semibold text-indigo-400">
+                              <Shield
+                                size={
+                                  13
+                                }
+                              />
+                              Owner
+                            </span>
+                          ) : isOwner ? (
+                            <button
+                              type="button"
+                              onClick={() =>
+                                removeMember(
+                                  memberId
+                                )
+                              }
+                              className="rounded-lg p-2 text-slate-500 transition hover:bg-red-500/10 hover:text-red-400"
+                              title="Remove member"
+                            >
+                              <Trash2
+                                size={
+                                  17
+                                }
+                              />
+                            </button>
+                          ) : (
+                            <span className="rounded-full bg-slate-800 px-3 py-1.5 text-xs text-slate-500">
+                              Member
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  }
                 )}
-
               </div>
-
             </section>
           )}
 
+          {/* =================================================
+              INVITATIONS
+          ================================================= */}
 
-        {/* WORKSPACE INFORMATION */}
+          {activeSection ===
+            "invitations" &&
+            isOwner && (
+              <div className="space-y-5">
+                {/* INVITE */}
 
-        <section className="rounded-2xl border bg-white p-6 shadow-sm">
+                <section className="rounded-2xl border border-slate-800 bg-slate-900 p-6">
+                  <div className="mb-6 flex items-start gap-4">
+                    <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-indigo-500/10 text-indigo-400">
+                      <UserPlus
+                        size={21}
+                      />
+                    </div>
 
-          <h2 className="mb-5 text-xl font-bold">
-            Workspace Information
-          </h2>
+                    <div>
+                      <h2 className="text-lg font-bold">
+                        Invite Team Member
+                      </h2>
 
+                      <p className="mt-1 text-sm text-slate-500">
+                        Invite another Orbit
+                        user to join this
+                        workspace.
+                      </p>
+                    </div>
+                  </div>
 
-          <div className="grid gap-4 md:grid-cols-2">
+                  <form
+                    onSubmit={
+                      inviteMember
+                    }
+                    className="flex max-w-2xl gap-3"
+                  >
+                    <input
+                      type="email"
+                      placeholder="team-member@example.com"
+                      value={email}
+                      onChange={(e) =>
+                        setEmail(
+                          e.target.value
+                        )
+                      }
+                      className="min-w-0 flex-1 rounded-xl border border-slate-800 bg-slate-950 px-4 py-3 text-sm text-white outline-none placeholder:text-slate-600 focus:border-indigo-500"
+                    />
 
-            <div className="rounded-xl bg-slate-50 p-4">
+                    <button
+                      type="submit"
+                      disabled={
+                        inviting
+                      }
+                      className="flex shrink-0 items-center gap-2 rounded-xl bg-indigo-600 px-5 text-sm font-semibold transition hover:bg-indigo-500 disabled:opacity-50"
+                    >
+                      <Mail
+                        size={17}
+                      />
 
-              <div className="mb-2 flex items-center gap-2 text-sm text-slate-500">
-                <Users size={17} />
-                Members
+                      {inviting
+                        ? "Sending..."
+                        : "Send Invite"}
+                    </button>
+                  </form>
+
+                  <p className="mt-3 text-xs text-slate-600">
+                    The invitation will
+                    appear in the recipient's
+                    Orbit invitation inbox.
+                  </p>
+                </section>
+
+                {/* SENT INVITATIONS */}
+
+                <section className="rounded-2xl border border-slate-800 bg-slate-900 p-6">
+                  <div className="mb-6">
+                    <div className="flex items-center gap-3">
+                      <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-slate-800 text-slate-400">
+                        <Clock
+                          size={19}
+                        />
+                      </div>
+
+                      <div>
+                        <h2 className="text-lg font-bold">
+                          Sent Invitations
+                        </h2>
+
+                        <p className="mt-1 text-sm text-slate-500">
+                          Invitations sent from
+                          this workspace.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {workspace
+                    .invitations
+                    ?.length ? (
+                    <div className="space-y-3">
+                      {workspace.invitations.map(
+                        (
+                          invitation
+                        ) => (
+                          <div
+                            key={
+                              invitation._id
+                            }
+                            className="flex items-center justify-between gap-4 rounded-xl border border-slate-800 bg-slate-950/50 p-4"
+                          >
+                            <div className="flex min-w-0 items-center gap-3">
+                              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-slate-800 text-slate-500">
+                                <Mail
+                                  size={
+                                    16
+                                  }
+                                />
+                              </div>
+
+                              <div className="min-w-0">
+                                <p className="truncate text-sm font-medium text-slate-200">
+                                  {
+                                    invitation.email
+                                  }
+                                </p>
+
+                                <p className="mt-1 text-xs text-slate-600">
+                                  {invitation.invitedAt
+                                    ? new Date(
+                                        invitation.invitedAt
+                                      ).toLocaleString()
+                                    : ""}
+                                </p>
+                              </div>
+                            </div>
+
+                            <span
+                              className={`rounded-full px-3 py-1.5 text-xs font-semibold ${
+                                invitation.status ===
+                                "accepted"
+                                  ? "bg-emerald-500/10 text-emerald-400"
+                                  : invitation.status ===
+                                    "declined"
+                                  ? "bg-red-500/10 text-red-400"
+                                  : "bg-amber-500/10 text-amber-400"
+                              }`}
+                            >
+                              {
+                                invitation.status
+                              }
+                            </span>
+                          </div>
+                        )
+                      )}
+                    </div>
+                  ) : (
+                    <div className="rounded-xl border border-dashed border-slate-800 py-10 text-center">
+                      <Mail
+                        size={28}
+                        className="mx-auto mb-3 text-slate-700"
+                      />
+
+                      <p className="text-sm text-slate-500">
+                        No invitations sent
+                        yet.
+                      </p>
+                    </div>
+                  )}
+                </section>
               </div>
-
-              <p className="text-2xl font-black">
-                {workspace.members
-                  ?.length || 0}
-              </p>
-
-            </div>
-
-
-            <div className="rounded-xl bg-slate-50 p-4">
-
-              <div className="mb-2 flex items-center gap-2 text-sm text-slate-500">
-                <FolderKanban
-                  size={17}
-                />
-                Boards
-              </div>
-
-              <p className="text-2xl font-black">
-                {workspace.boards
-                  ?.length || 0}
-              </p>
-
-            </div>
-
-          </div>
-
-        </section>
-
+            )}
+        </div>
       </main>
-
     </div>
   );
 }

@@ -301,6 +301,17 @@ router.post("/:id/comments", async (req, res, next) => {
       "name"
     );
 
+    // ========================================================
+    // REAL-TIME COMMENT UPDATE
+    // ========================================================
+
+    emitToBoard(
+      req,
+      board._id.toString(),
+      "comment:created",
+      comment
+    );
+
     res.status(201).json({
       comment
     });

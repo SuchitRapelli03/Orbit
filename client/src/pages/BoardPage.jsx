@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   DragDropContext,
   Droppable,
@@ -73,8 +73,14 @@ export default function BoardPage() {
   const [activeCard, setActiveCard] =
     useState(null);
 
+  const activeCardRef = useRef(null);
+
   const [comments, setComments] = useState([]);
   const [commentText, setCommentText] = useState("");
+
+  useEffect(() => {
+    activeCardRef.current = activeCard;
+  }, [activeCard]);
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -173,6 +179,31 @@ export default function BoardPage() {
       addNotification(notification);
     }
 
+    function handleCommentCreated(comment) {
+      if (!comment?._id || !comment?.card) return;
+
+      const currentCard = activeCardRef.current;
+
+      if (
+        !currentCard ||
+        String(comment.card) !== String(currentCard._id)
+      ) {
+        return;
+      }
+
+      setComments((previous) => {
+        const alreadyExists = previous.some(
+          (item) => String(item._id) === String(comment._id)
+        );
+
+        if (alreadyExists) {
+          return previous;
+        }
+
+        return [...previous, comment];
+      });
+    }
+
     socket.on("connect", handleConnect);
 
     socket.on(
@@ -198,6 +229,11 @@ export default function BoardPage() {
     socket.on(
       "notification:new",
       handleNotification
+    );
+
+    socket.on(
+      "comment:created",
+      handleCommentCreated
     );
 
     if (socket.connected) {
@@ -235,6 +271,11 @@ export default function BoardPage() {
       socket.off(
         "notification:new",
         handleNotification
+      );
+
+      socket.off(
+        "comment:created",
+        handleCommentCreated
       );
     };
   }, [

@@ -4,7 +4,7 @@ import Login from "./pages/Login";
 import Register from "./pages/Register";
 import Dashboard from "./pages/Dashboard";
 import BoardPage from "./pages/BoardPage";
-import WorkspaceSettings from "./pages/WorkspaceSettings";
+
 
 export default function App() {
   const token = localStorage.getItem("orbit_token");
@@ -40,11 +40,6 @@ export default function App() {
         element={<Dashboard />}
       />
 
-      {/* WORKSPACE SETTINGS */}
-      <Route
-        path="/workspaces/:workspaceId/settings"
-        element={<WorkspaceSettings />}
-      />
 
       {/* BOARD */}
       <Route

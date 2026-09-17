@@ -1,8 +1,8 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   DragDropContext,
   Droppable,
-  Draggable
+  Draggable,
 } from "@hello-pangea/dnd";
 
 import {
@@ -13,22 +13,34 @@ import {
   Send,
   MoreHorizontal,
   Pencil,
-  Trash2
+  Trash2,
+  LayoutDashboard,
+  Settings,
+  LogOut,
+  FolderKanban,
+  Users,
+  ChevronRight,
+  Circle,
+  MessageSquare,
 } from "lucide-react";
 
-import { useParams } from "react-router-dom";
+import {
+  useNavigate,
+  useParams,
+} from "react-router-dom";
 
 import api from "../lib/api";
 import { connectSocket } from "../lib/socket";
 
 import { useOrbitStore } from "../store/useOrbitStore";
 
-
 export default function BoardPage() {
   const { boardId } = useParams();
+  const navigate = useNavigate();
 
   const board = useOrbitStore((state) => state.board);
   const lists = useOrbitStore((state) => state.lists);
+  const user = useOrbitStore((state) => state.user);
 
   const setBoard = useOrbitStore((state) => state.setBoard);
   const setLists = useOrbitStore((state) => state.setLists);
@@ -49,36 +61,31 @@ export default function BoardPage() {
     (state) => state.addNotification
   );
 
-
-  const [listTitle, setListTitle] =
-    useState("");
-
+  const [listTitle, setListTitle] = useState("");
   const [creatingList, setCreatingList] =
     useState(false);
 
   const [creatingCard, setCreatingCard] =
     useState(false);
 
-  const [search, setSearch] =
-    useState("");
+  const [search, setSearch] = useState("");
 
   const [activeCard, setActiveCard] =
     useState(null);
 
-  const [comments, setComments] =
-    useState([]);
+  const activeCardRef = useRef(null);
 
-  const [commentText, setCommentText] =
-    useState("");
+  const [comments, setComments] = useState([]);
+  const [commentText, setCommentText] = useState("");
 
-  const [loading, setLoading] =
-    useState(true);
+  useEffect(() => {
+    activeCardRef.current = activeCard;
+  }, [activeCard]);
 
-  const [error, setError] =
-    useState("");
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
 
-  const [openMenu, setOpenMenu] =
-    useState(null);
+  const [openMenu, setOpenMenu] = useState(null);
 
   const [editingList, setEditingList] =
     useState(null);
@@ -89,10 +96,9 @@ export default function BoardPage() {
   const [savingList, setSavingList] =
     useState(false);
 
-
-  // ============================================================
-  // LOAD BOARD
-  // ============================================================
+  /* =========================================================
+     LOAD BOARD
+  ========================================================= */
 
   useEffect(() => {
     let mounted = true;
@@ -102,18 +108,15 @@ export default function BoardPage() {
         setLoading(true);
         setError("");
 
-        const { data } =
-          await api.get(
-            `/boards/${boardId}`
-          );
+        const { data } = await api.get(
+          `/boards/${boardId}`
+        );
 
         if (!mounted) return;
 
         setBoard(data.board);
 
-        setLists(
-          data.board.lists || []
-        );
+        setLists(data.board.lists || []);
       } catch (error) {
         console.error(
           "Board loading error:",
@@ -138,20 +141,14 @@ export default function BoardPage() {
     return () => {
       mounted = false;
     };
-  }, [
-    boardId,
-    setBoard,
-    setLists
-  ]);
+  }, [boardId, setBoard, setLists]);
 
-
-  // ============================================================
-  // SOCKET
-  // ============================================================
+  /* =========================================================
+     SOCKET.IO
+  ========================================================= */
 
   useEffect(() => {
-    const socket =
-      connectSocket();
+    const socket = connectSocket();
 
     function handleConnect() {
       console.log(
@@ -159,10 +156,7 @@ export default function BoardPage() {
         socket.id
       );
 
-      socket.emit(
-        "board:join",
-        boardId
-      );
+      socket.emit("board:join", boardId);
     }
 
     function handleCardCreated(card) {
@@ -177,24 +171,40 @@ export default function BoardPage() {
       upsertCard(card);
     }
 
-    function handleCardDeleted({
-      cardId
-    }) {
+    function handleCardDeleted({ cardId }) {
       removeCard(cardId);
     }
 
-    function handleNotification(
-      notification
-    ) {
-      addNotification(
-        notification
-      );
+    function handleNotification(notification) {
+      addNotification(notification);
     }
 
-    socket.on(
-      "connect",
-      handleConnect
-    );
+    function handleCommentCreated(comment) {
+      if (!comment?._id || !comment?.card) return;
+
+      const currentCard = activeCardRef.current;
+
+      if (
+        !currentCard ||
+        String(comment.card) !== String(currentCard._id)
+      ) {
+        return;
+      }
+
+      setComments((previous) => {
+        const alreadyExists = previous.some(
+          (item) => String(item._id) === String(comment._id)
+        );
+
+        if (alreadyExists) {
+          return previous;
+        }
+
+        return [...previous, comment];
+      });
+    }
+
+    socket.on("connect", handleConnect);
 
     socket.on(
       "card:created",
@@ -221,18 +231,17 @@ export default function BoardPage() {
       handleNotification
     );
 
+    socket.on(
+      "comment:created",
+      handleCommentCreated
+    );
+
     if (socket.connected) {
-      socket.emit(
-        "board:join",
-        boardId
-      );
+      socket.emit("board:join", boardId);
     }
 
     return () => {
-      socket.emit(
-        "board:leave",
-        boardId
-      );
+      socket.emit("board:leave", boardId);
 
       socket.off(
         "connect",
@@ -263,46 +272,41 @@ export default function BoardPage() {
         "notification:new",
         handleNotification
       );
+
+      socket.off(
+        "comment:created",
+        handleCommentCreated
+      );
     };
   }, [
     boardId,
     upsertCard,
     removeCard,
-    addNotification
+    addNotification,
   ]);
 
+  /* =========================================================
+     CREATE LIST
+  ========================================================= */
 
-  // ============================================================
-  // CREATE LIST
-  // ============================================================
-
-  async function handleCreateList(
-    event
-  ) {
+  async function handleCreateList(event) {
     event.preventDefault();
 
-    const title =
-      listTitle.trim();
+    const title = listTitle.trim();
 
-    if (
-      !title ||
-      creatingList
-    ) {
-      return;
-    }
+    if (!title || creatingList) return;
 
     try {
       setCreatingList(true);
       setError("");
 
-      const { data } =
-        await api.post(
-          "/lists",
-          {
-            boardId,
-            title
-          }
-        );
+      const { data } = await api.post(
+        "/lists",
+        {
+          boardId,
+          title,
+        }
+      );
 
       addList(data.list);
 
@@ -322,39 +326,30 @@ export default function BoardPage() {
     }
   }
 
+  /* =========================================================
+     CREATE CARD
+  ========================================================= */
 
-  // ============================================================
-  // CREATE CARD
-  // ============================================================
+  async function handleCreateCard(listId) {
+    if (creatingCard) return;
 
-  async function handleCreateCard(
-    listId
-  ) {
-    if (creatingCard) {
-      return;
-    }
+    const title = window.prompt(
+      "Enter card title"
+    );
 
-    const title =
-      window.prompt(
-        "Enter card title"
-      );
-
-    if (!title?.trim()) {
-      return;
-    }
+    if (!title?.trim()) return;
 
     try {
       setCreatingCard(true);
       setError("");
 
-      const { data } =
-        await api.post(
-          "/cards",
-          {
-            listId,
-            title: title.trim()
-          }
-        );
+      const { data } = await api.post(
+        "/cards",
+        {
+          listId,
+          title: title.trim(),
+        }
+      );
 
       upsertCard(data.card);
     } catch (error) {
@@ -372,10 +367,9 @@ export default function BoardPage() {
     }
   }
 
-
-  // ============================================================
-  // RENAME LIST
-  // ============================================================
+  /* =========================================================
+     RENAME LIST
+  ========================================================= */
 
   function startEditingList(list) {
     setEditingList(list._id);
@@ -383,34 +377,28 @@ export default function BoardPage() {
     setOpenMenu(null);
   }
 
-
   async function saveListName(listId) {
-    const title =
-      editingTitle.trim();
+    const title = editingTitle.trim();
 
-    if (!title || savingList) {
-      return;
-    }
+    if (!title || savingList) return;
 
     try {
       setSavingList(true);
       setError("");
 
-      const { data } =
-        await api.patch(
-          `/lists/${listId}`,
-          {
-            title
-          }
-        );
+      const { data } = await api.patch(
+        `/lists/${listId}`,
+        {
+          title,
+        }
+      );
 
       setLists(
         lists.map((list) =>
           list._id === listId
             ? {
                 ...list,
-                title:
-                  data.list.title
+                title: data.list.title,
               }
             : list
         )
@@ -433,14 +421,11 @@ export default function BoardPage() {
     }
   }
 
+  /* =========================================================
+     DELETE LIST
+  ========================================================= */
 
-  // ============================================================
-  // DELETE LIST
-  // ============================================================
-
-  async function handleDeleteList(
-    list
-  ) {
+  async function handleDeleteList(list) {
     setOpenMenu(null);
 
     const hasCards =
@@ -453,9 +438,7 @@ export default function BoardPage() {
     const confirmed =
       window.confirm(message);
 
-    if (!confirmed) {
-      return;
-    }
+    if (!confirmed) return;
 
     try {
       setError("");
@@ -483,40 +466,35 @@ export default function BoardPage() {
     }
   }
 
+  /* =========================================================
+     DRAG & DROP
+  ========================================================= */
 
-  // ============================================================
-  // DRAG & DROP
-  // ============================================================
-
-  async function handleDragEnd(
-    result
-  ) {
+  async function handleDragEnd(result) {
     const {
       source,
       destination,
-      draggableId
+      draggableId,
     } = result;
 
-    if (!destination) {
-      return;
-    }
+    if (!destination) return;
 
     if (
       source.droppableId ===
         destination.droppableId &&
-      source.index ===
-        destination.index
+      source.index === destination.index
     ) {
       return;
     }
 
-    const currentLists =
-      lists.map((list) => ({
+    const currentLists = lists.map(
+      (list) => ({
         ...list,
         cards: [
-          ...(list.cards || [])
-        ]
-      }));
+          ...(list.cards || []),
+        ],
+      })
+    );
 
     const sourceList =
       currentLists.find(
@@ -542,13 +520,10 @@ export default function BoardPage() {
     const cardIndex =
       sourceList.cards.findIndex(
         (card) =>
-          card._id ===
-          draggableId
+          card._id === draggableId
       );
 
-    if (cardIndex === -1) {
-      return;
-    }
+    if (cardIndex === -1) return;
 
     const [movedCard] =
       sourceList.cards.splice(
@@ -558,8 +533,7 @@ export default function BoardPage() {
 
     const updatedCard = {
       ...movedCard,
-      list:
-        destinationList._id
+      list: destinationList._id,
     };
 
     destinationList.cards.splice(
@@ -571,17 +545,15 @@ export default function BoardPage() {
     setLists(currentLists);
 
     try {
-      const { data } =
-        await api.patch(
-          `/cards/${draggableId}/move`,
-          {
-            listId:
-              destinationList._id,
-
-            position:
-              destination.index
-          }
-        );
+      const { data } = await api.patch(
+        `/cards/${draggableId}/move`,
+        {
+          listId:
+            destinationList._id,
+          position:
+            destination.index,
+        }
+      );
 
       upsertCard(data.card);
     } catch (error) {
@@ -607,10 +579,9 @@ export default function BoardPage() {
     }
   }
 
-
-  // ============================================================
-  // CARD COMMENTS
-  // ============================================================
+  /* =========================================================
+     COMMENTS
+  ========================================================= */
 
   async function openCard(card) {
     setActiveCard(card);
@@ -635,7 +606,6 @@ export default function BoardPage() {
     }
   }
 
-
   async function handleAddComment() {
     if (
       !activeCard ||
@@ -650,14 +620,14 @@ export default function BoardPage() {
           `/cards/${activeCard._id}/comments`,
           {
             body:
-              commentText.trim()
+              commentText.trim(),
           }
         );
 
       setComments(
         (previous) => [
           ...previous,
-          data.comment
+          data.comment,
         ]
       );
 
@@ -670,639 +640,835 @@ export default function BoardPage() {
     }
   }
 
+  /* =========================================================
+     SEARCH
+  ========================================================= */
 
-  // ============================================================
-  // SEARCH
-  // ============================================================
+  const filteredLists = useMemo(() => {
+    const query =
+      search.trim().toLowerCase();
 
-  const filteredLists =
-    useMemo(() => {
-      const query =
-        search.trim().toLowerCase();
+    if (!query) return lists;
 
-      if (!query) {
-        return lists;
-      }
+    return lists.map((list) => ({
+      ...list,
+      cards: (list.cards || []).filter(
+        (card) =>
+          card.title
+            ?.toLowerCase()
+            .includes(query)
+      ),
+    }));
+  }, [lists, search]);
 
-      return lists.map(
-        (list) => ({
-          ...list,
+  /* =========================================================
+     LOGOUT
+  ========================================================= */
 
-          cards:
-            (list.cards || []).filter(
-              (card) =>
-                card.title
-                  .toLowerCase()
-                  .includes(query)
-            )
-        })
-      );
-    }, [
-      lists,
-      search
-    ]);
+  function logout() {
+    localStorage.removeItem(
+      "orbit_token"
+    );
 
+    localStorage.removeItem(
+      "orbit_user"
+    );
 
-  // ============================================================
-  // LOADING
-  // ============================================================
+    navigate("/login");
+  }
+
+  /* =========================================================
+     LOADING
+  ========================================================= */
 
   if (loading) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-slate-100">
-        <p className="text-slate-500">
-          Loading Orbit board...
-        </p>
+      <div className="flex min-h-screen items-center justify-center bg-slate-950 text-white">
+        <div className="flex items-center gap-3">
+          <div className="h-2 w-2 animate-pulse rounded-full bg-indigo-500" />
+          <p className="text-slate-400">
+            Loading Orbit board...
+          </p>
+        </div>
       </div>
     );
   }
 
+  const workspaceName =
+    board?.workspace?.name ||
+    "Workspace";
 
-  // ============================================================
-  // UI
-  // ============================================================
+  /* =========================================================
+     UI
+  ========================================================= */
 
   return (
-    <main
-      className="min-h-screen bg-slate-100"
-      onClick={() =>
-        setOpenMenu(null)
-      }
-    >
+    <div className="flex min-h-screen bg-slate-950 text-white">
+      {/* =====================================================
+          SIDEBAR
+      ===================================================== */}
 
-      {/* HEADER */}
-      <header className="border-b bg-white">
+      <aside className="hidden w-72 shrink-0 flex-col border-r border-slate-800 bg-slate-900 lg:flex">
+        {/* BRAND */}
 
-        <div className="flex items-center justify-between px-6 py-4">
+        <div className="border-b border-slate-800 px-6 py-5">
+          <div className="flex items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-indigo-600 font-bold">
+              O
+            </div>
 
-          <div>
+            <div>
+              <h1 className="text-xl font-bold">
+                Orbit
+              </h1>
 
-            <div className="flex items-center gap-2">
+              <p className="text-xs text-slate-500">
+                Collaborative Workspace
+              </p>
+            </div>
+          </div>
+        </div>
 
-              <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-slate-900 text-white">
-                ◉
+        {/* WORKSPACE */}
+
+        <div className="border-b border-slate-800 p-4">
+          <p className="mb-2 px-2 text-[11px] font-semibold uppercase tracking-wider text-slate-500">
+            Workspace
+          </p>
+
+          <div className="flex items-center gap-3 rounded-xl bg-slate-800 px-3 py-3">
+            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-indigo-500/15 text-indigo-400">
+              <FolderKanban size={18} />
+            </div>
+
+            <div className="min-w-0">
+              <p className="truncate text-sm font-semibold">
+                {workspaceName}
+              </p>
+
+              <p className="text-xs text-slate-500">
+                Current workspace
+              </p>
+            </div>
+          </div>
+        </div>
+
+        {/* NAVIGATION */}
+
+        <nav className="space-y-1 px-4 py-5">
+          <button
+            onClick={() =>
+              navigate("/dashboard")
+            }
+            className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm text-slate-400 transition hover:bg-slate-800 hover:text-white"
+          >
+            <LayoutDashboard size={18} />
+            Dashboard
+          </button>
+
+          <button
+            className="flex w-full items-center gap-3 rounded-lg bg-indigo-600/15 px-3 py-2.5 text-sm font-medium text-indigo-400"
+          >
+            <FolderKanban size={18} />
+            Boards
+          </button>
+
+          {board?.workspace?._id && (
+            <button
+              onClick={() =>
+                navigate(
+                  `/workspaces/${board.workspace._id}/settings`
+                )
+              }
+              className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm text-slate-400 transition hover:bg-slate-800 hover:text-white"
+            >
+              <Settings size={18} />
+              Workspace Settings
+            </button>
+          )}
+        </nav>
+
+        {/* BOARD INFO */}
+
+        <div className="px-4">
+          <p className="mb-2 px-2 text-[11px] font-semibold uppercase tracking-wider text-slate-500">
+            Current Board
+          </p>
+
+          <div className="rounded-xl border border-slate-800 bg-slate-950/50 p-3">
+            <div className="flex items-center gap-3">
+              <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-indigo-600/15 text-indigo-400">
+                <FolderKanban size={17} />
               </div>
 
-              <span className="text-xl font-black">
-                Orbit
-              </span>
+              <div className="min-w-0">
+                <p className="truncate text-sm font-semibold">
+                  {board?.name ||
+                    "Board"}
+                </p>
 
+                <p className="text-xs text-slate-500">
+                  {lists.length} lists
+                </p>
+              </div>
             </div>
-
-            <p className="mt-1 text-sm text-slate-500">
-              {board?.workspace?.name ||
-                "Workspace"}
-              {" / "}
-              {board?.name ||
-                "Board"}
-            </p>
-
           </div>
+        </div>
 
+        {/* USER */}
 
+        <div className="mt-auto border-t border-slate-800 p-4">
           <div className="flex items-center gap-3">
-
-            <div className="flex items-center rounded-xl border bg-slate-50 px-3">
-
-              <Search
-                size={17}
-                className="text-slate-400"
-              />
-
-              <input
-                className="w-44 bg-transparent px-2 py-2 text-sm outline-none"
-                placeholder="Search tasks..."
-                value={search}
-                onChange={(event) =>
-                  setSearch(
-                    event.target.value
-                  )
-                }
-              />
-
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-indigo-600 font-semibold">
+              {user?.name
+                ?.charAt(0)
+                ?.toUpperCase() ||
+                "U"}
             </div>
 
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-sm font-medium">
+                {user?.name ||
+                  "User"}
+              </p>
+
+              <p className="truncate text-xs text-slate-500">
+                {user?.email || ""}
+              </p>
+            </div>
 
             <button
-              type="button"
-              className="rounded-xl border bg-white p-2.5 hover:bg-slate-50"
+              onClick={logout}
+              className="rounded-lg p-2 text-slate-500 transition hover:bg-slate-800 hover:text-red-400"
+              title="Logout"
             >
-              <Bell size={18} />
+              <LogOut size={17} />
             </button>
+          </div>
+        </div>
+      </aside>
 
+      {/* =====================================================
+          MAIN
+      ===================================================== */}
+
+      <main
+        className="flex min-w-0 flex-1 flex-col"
+        onClick={() => setOpenMenu(null)}
+      >
+        {/* HEADER */}
+
+        <header className="shrink-0 border-b border-slate-800 bg-slate-950/95 backdrop-blur">
+          <div className="flex min-h-[76px] items-center justify-between gap-5 px-5 lg:px-7">
+            <div className="min-w-0">
+              <div className="flex items-center gap-2 text-xs text-slate-500">
+                <span>
+                  {workspaceName}
+                </span>
+
+                <ChevronRight size={13} />
+
+                <span className="text-slate-400">
+                  Boards
+                </span>
+
+                <ChevronRight size={13} />
+
+                <span className="text-indigo-400">
+                  {board?.name ||
+                    "Board"}
+                </span>
+              </div>
+
+              <h1 className="mt-1 truncate text-2xl font-bold tracking-tight">
+                {board?.name ||
+                  "Board"}
+              </h1>
+            </div>
+
+            <div className="flex items-center gap-3">
+              {/* ONLINE */}
+
+              <div className="hidden items-center gap-2 rounded-xl border border-slate-800 bg-slate-900 px-3 py-2 sm:flex">
+                <span className="relative flex h-2.5 w-2.5">
+                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-50" />
+                  <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-emerald-500" />
+                </span>
+
+                <span className="text-xs font-medium text-slate-400">
+                  Live
+                </span>
+              </div>
+
+              {/* SEARCH */}
+
+              <div className="flex items-center rounded-xl border border-slate-800 bg-slate-900 px-3">
+                <Search
+                  size={17}
+                  className="text-slate-500"
+                />
+
+                <input
+                  className="w-32 bg-transparent px-2.5 py-2.5 text-sm text-white outline-none placeholder:text-slate-600 sm:w-48"
+                  placeholder="Search cards..."
+                  value={search}
+                  onChange={(event) =>
+                    setSearch(
+                      event.target.value
+                    )
+                  }
+                />
+
+                {search && (
+                  <button
+                    onClick={() =>
+                      setSearch("")
+                    }
+                    className="text-slate-500 hover:text-white"
+                  >
+                    <X size={15} />
+                  </button>
+                )}
+              </div>
+
+              <button
+                className="hidden rounded-xl border border-slate-800 bg-slate-900 p-2.5 text-slate-400 transition hover:bg-slate-800 hover:text-white sm:block"
+                title="Notifications"
+              >
+                <Bell size={18} />
+              </button>
+            </div>
           </div>
 
-        </div>
+          {/* BOARD TOOLBAR */}
 
-      </header>
+          <div className="flex items-center justify-between border-t border-slate-900 px-5 py-3 lg:px-7">
+            <div className="flex items-center gap-2 text-sm text-slate-500">
+              <Users size={16} />
+              <span>
+                Collaborative board
+              </span>
+            </div>
 
+            <span className="text-xs text-slate-600">
+              {lists.length}{" "}
+              {lists.length === 1
+                ? "list"
+                : "lists"}
+            </span>
+          </div>
+        </header>
 
-      {/* ERROR */}
-      {error && (
+        {/* ERROR */}
 
-        <div className="mx-5 mt-4 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-600">
-          {error}
-        </div>
+        {error && (
+          <div className="mx-5 mt-4 flex items-center justify-between rounded-xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-400 lg:mx-7">
+            <span>{error}</span>
 
-      )}
+            <button
+              onClick={() =>
+                setError("")
+              }
+            >
+              <X size={17} />
+            </button>
+          </div>
+        )}
 
+        {/* ===================================================
+            KANBAN BOARD
+        =================================================== */}
 
-      {/* BOARD */}
-      <section className="overflow-x-auto p-5">
-
-        <div className="flex min-w-max items-start gap-4">
-
+        <section className="flex-1 overflow-x-auto overflow-y-hidden p-5 lg:p-7">
           <DragDropContext
-            onDragEnd={
-              handleDragEnd
-            }
+            onDragEnd={handleDragEnd}
           >
+            <div className="flex min-h-full min-w-max items-start gap-4 pb-5">
+              {filteredLists.map(
+                (list) => (
+                  <Droppable
+                    droppableId={String(
+                      list._id
+                    )}
+                    key={list._id}
+                  >
+                    {(
+                      provided,
+                      snapshot
+                    ) => (
+                      <div
+                        ref={
+                          provided.innerRef
+                        }
+                        {...provided.droppableProps}
+                        className={`flex w-[310px] max-h-[calc(100vh-190px)] flex-col rounded-2xl border transition ${
+                          snapshot.isDraggingOver
+                            ? "border-indigo-500/50 bg-indigo-950/20"
+                            : "border-slate-800 bg-slate-900/80"
+                        }`}
+                      >
+                        {/* LIST HEADER */}
 
-            {filteredLists.map(
-              (list) => (
-
-                <Droppable
-                  droppableId={
-                    String(list._id)
-                  }
-                  key={list._id}
-                >
-
-                  {(provided) => (
-
-                    <div
-                      ref={
-                        provided.innerRef
-                      }
-                      {...provided.droppableProps}
-                      className="w-80 rounded-2xl bg-slate-200 p-3"
-                    >
-
-                      {/* LIST HEADER */}
-                      <div className="mb-3 flex items-center justify-between">
-
-                        {editingList ===
-                        list._id ? (
-
-                          <div className="flex flex-1 items-center gap-2">
-
-                            <input
-                              autoFocus
-                              value={
-                                editingTitle
-                              }
-                              onChange={(
-                                event
-                              ) =>
-                                setEditingTitle(
-                                  event.target.value
-                                )
-                              }
-                              onKeyDown={(
-                                event
-                              ) => {
-
-                                if (
-                                  event.key ===
-                                  "Enter"
-                                ) {
-                                  saveListName(
-                                    list._id
-                                  );
+                        <div className="shrink-0 border-b border-slate-800 px-4 py-3">
+                          {editingList ===
+                          list._id ? (
+                            <div className="flex gap-2">
+                              <input
+                                autoFocus
+                                value={
+                                  editingTitle
                                 }
-
-                                if (
-                                  event.key ===
-                                  "Escape"
-                                ) {
-                                  setEditingList(
-                                    null
-                                  );
+                                onChange={(
+                                  event
+                                ) =>
+                                  setEditingTitle(
+                                    event.target
+                                      .value
+                                  )
                                 }
+                                onKeyDown={(
+                                  event
+                                ) => {
+                                  if (
+                                    event.key ===
+                                    "Enter"
+                                  ) {
+                                    saveListName(
+                                      list._id
+                                    );
+                                  }
 
-                              }}
-                              className="min-w-0 flex-1 rounded-lg border border-slate-300 bg-white px-2 py-1.5 text-sm outline-none"
-                            />
-
-                            <button
-                              type="button"
-                              disabled={
-                                savingList
-                              }
-                              onClick={() =>
-                                saveListName(
-                                  list._id
-                                )
-                              }
-                              className="rounded-lg bg-slate-900 px-2 py-1.5 text-xs font-semibold text-white disabled:opacity-50"
-                            >
-                              Save
-                            </button>
-
-                          </div>
-
-                        ) : (
-
-                          <>
-
-                            <div className="flex items-center gap-2">
-
-                              <h2 className="font-bold text-slate-800">
-                                {list.title}
-                              </h2>
-
-                              <span className="rounded-full bg-white px-2 py-1 text-xs font-semibold text-slate-500">
-                                {list.cards?.length ||
-                                  0}
-                              </span>
-
-                            </div>
-
-
-                            {/* LIST MENU */}
-                            <div
-                              className="relative"
-                              onClick={(
-                                event
-                              ) =>
-                                event.stopPropagation()
-                              }
-                            >
+                                  if (
+                                    event.key ===
+                                    "Escape"
+                                  ) {
+                                    setEditingList(
+                                      null
+                                    );
+                                  }
+                                }}
+                                className="min-w-0 flex-1 rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm text-white outline-none focus:border-indigo-500"
+                              />
 
                               <button
                                 type="button"
+                                disabled={
+                                  savingList
+                                }
                                 onClick={() =>
-                                  setOpenMenu(
-                                    openMenu ===
-                                      list._id
-                                      ? null
-                                      : list._id
+                                  saveListName(
+                                    list._id
                                   )
                                 }
-                                className="rounded-lg p-1.5 text-slate-500 hover:bg-white"
+                                className="rounded-lg bg-indigo-600 px-3 text-xs font-semibold hover:bg-indigo-500 disabled:opacity-50"
                               >
-                                <MoreHorizontal
-                                  size={18}
-                                />
+                                Save
                               </button>
-
-
-                              {openMenu ===
-                                list._id && (
-
-                                <div className="absolute right-0 top-9 z-10 w-40 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-xl">
-
-                                  <button
-                                    type="button"
-                                    onClick={() =>
-                                      startEditingList(
-                                        list
-                                      )
-                                    }
-                                    className="flex w-full items-center gap-2 px-3 py-2.5 text-left text-sm hover:bg-slate-50"
-                                  >
-                                    <Pencil
-                                      size={15}
-                                    />
-                                    Rename
-                                  </button>
-
-
-                                  <button
-                                    type="button"
-                                    onClick={() =>
-                                      handleDeleteList(
-                                        list
-                                      )
-                                    }
-                                    className="flex w-full items-center gap-2 px-3 py-2.5 text-left text-sm text-red-600 hover:bg-red-50"
-                                  >
-                                    <Trash2
-                                      size={15}
-                                    />
-                                    Delete
-                                  </button>
-
-                                </div>
-
-                              )}
-
                             </div>
+                          ) : (
+                            <div className="flex items-center justify-between gap-2">
+                              <div className="flex min-w-0 items-center gap-2">
+                                <Circle
+                                  size={9}
+                                  fill="currentColor"
+                                  className="shrink-0 text-indigo-500"
+                                />
 
-                          </>
+                                <h2 className="truncate text-sm font-bold text-white">
+                                  {list.title}
+                                </h2>
 
-                        )}
+                                <span className="rounded-md bg-slate-800 px-2 py-0.5 text-[11px] font-semibold text-slate-400">
+                                  {list.cards
+                                    ?.length ||
+                                    0}
+                                </span>
+                              </div>
 
-                      </div>
-
-
-                      {/* CARDS */}
-                      <div className="space-y-3">
-
-                        {(list.cards || []).map(
-                          (card, index) => (
-
-                            <Draggable
-                              key={
-                                card._id
-                              }
-                              draggableId={
-                                String(
-                                  card._id
-                                )
-                              }
-                              index={
-                                index
-                              }
-                            >
-
-                              {(
-                                dragProvided,
-                                snapshot
-                              ) => (
-
-                                <div
-                                  ref={
-                                    dragProvided.innerRef
-                                  }
-                                  {...dragProvided.draggableProps}
-                                  {...dragProvided.dragHandleProps}
+                              <div
+                                className="relative"
+                                onClick={(event) =>
+                                  event.stopPropagation()
+                                }
+                              >
+                                <button
+                                  type="button"
                                   onClick={() =>
-                                    openCard(
-                                      card
+                                    setOpenMenu(
+                                      openMenu ===
+                                        list._id
+                                        ? null
+                                        : list._id
                                     )
                                   }
-                                  className={`cursor-grab rounded-xl bg-white p-4 shadow-sm transition ${
-                                    snapshot.isDragging
-                                      ? "rotate-1 shadow-xl"
-                                      : "hover:shadow-md"
-                                  }`}
+                                  className="rounded-lg p-1.5 text-slate-500 transition hover:bg-slate-800 hover:text-white"
                                 >
+                                  <MoreHorizontal
+                                    size={18}
+                                  />
+                                </button>
 
-                                  <div className="flex items-start justify-between gap-2">
-
-                                    <p className="font-semibold text-slate-800">
-                                      {
-                                        card.title
+                                {openMenu ===
+                                  list._id && (
+                                  <div className="absolute right-0 top-9 z-30 w-40 overflow-hidden rounded-xl border border-slate-700 bg-slate-900 shadow-2xl">
+                                    <button
+                                      type="button"
+                                      onClick={() =>
+                                        startEditingList(
+                                          list
+                                        )
                                       }
-                                    </p>
+                                      className="flex w-full items-center gap-2 px-3 py-2.5 text-left text-sm text-slate-300 hover:bg-slate-800 hover:text-white"
+                                    >
+                                      <Pencil
+                                        size={15}
+                                      />
+                                      Rename
+                                    </button>
 
-                                    <MoreHorizontal
-                                      size={17}
-                                      className="shrink-0 text-slate-400"
-                                    />
-
+                                    <button
+                                      type="button"
+                                      onClick={() =>
+                                        handleDeleteList(
+                                          list
+                                        )
+                                      }
+                                      className="flex w-full items-center gap-2 px-3 py-2.5 text-left text-sm text-red-400 hover:bg-red-500/10"
+                                    >
+                                      <Trash2
+                                        size={15}
+                                      />
+                                      Delete
+                                    </button>
                                   </div>
+                                )}
+                              </div>
+                            </div>
+                          )}
+                        </div>
 
+                        {/* CARDS */}
 
-                                  <span className="mt-3 inline-block rounded-full bg-slate-100 px-2 py-1 text-xs capitalize text-slate-500">
-                                    {card.priority ||
-                                      "medium"}
-                                  </span>
+                        <div className="min-h-[80px] flex-1 overflow-y-auto p-3">
+                          <div className="space-y-3">
+                            {(list.cards || []).map(
+                              (
+                                card,
+                                index
+                              ) => (
+                                <Draggable
+                                  key={
+                                    card._id
+                                  }
+                                  draggableId={String(
+                                    card._id
+                                  )}
+                                  index={index}
+                                >
+                                  {(
+                                    dragProvided,
+                                    snapshot
+                                  ) => (
+                                    <div
+                                      ref={
+                                        dragProvided.innerRef
+                                      }
+                                      {...dragProvided.draggableProps}
+                                      {...dragProvided.dragHandleProps}
+                                      onClick={() =>
+                                        openCard(
+                                          card
+                                        )
+                                      }
+                                      className={`group cursor-grab rounded-xl border bg-slate-800 p-4 transition active:cursor-grabbing ${
+                                        snapshot.isDragging
+                                          ? "rotate-1 border-indigo-500/50 bg-slate-700 shadow-2xl"
+                                          : "border-slate-700/70 hover:border-slate-600 hover:bg-slate-800/90"
+                                      }`}
+                                    >
+                                      <div className="flex items-start justify-between gap-3">
+                                        <p className="text-sm font-semibold leading-5 text-slate-100">
+                                          {
+                                            card.title
+                                          }
+                                        </p>
 
-                                </div>
+                                        <MoreHorizontal
+                                          size={
+                                            16
+                                          }
+                                          className="shrink-0 text-slate-600 transition group-hover:text-slate-400"
+                                        />
+                                      </div>
 
-                              )}
+                                      <div className="mt-4 flex items-center justify-between">
+                                        <span className="rounded-md bg-indigo-500/10 px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-indigo-400">
+                                          {card.priority ||
+                                            "Medium"}
+                                        </span>
 
-                            </Draggable>
+                                        <div className="flex items-center gap-1 text-slate-600">
+                                          <MessageSquare
+                                            size={
+                                              14
+                                            }
+                                          />
 
-                          )
-                        )}
+                                          <span className="text-[11px]">
+                                            Open
+                                          </span>
+                                        </div>
+                                      </div>
+                                    </div>
+                                  )}
+                                </Draggable>
+                              )
+                            )}
+                          </div>
 
+                          {provided.placeholder}
+
+                          {(list.cards || [])
+                            .length ===
+                            0 && (
+                            <div className="flex min-h-[90px] items-center justify-center rounded-xl border border-dashed border-slate-800 text-center">
+                              <p className="text-xs text-slate-600">
+                                No cards yet
+                              </p>
+                            </div>
+                          )}
+                        </div>
+
+                        {/* ADD CARD */}
+
+                        <div className="shrink-0 border-t border-slate-800 p-3">
+                          <button
+                            type="button"
+                            disabled={
+                              creatingCard
+                            }
+                            onClick={() =>
+                              handleCreateCard(
+                                list._id
+                              )
+                            }
+                            className="flex w-full items-center justify-center gap-2 rounded-xl border border-transparent px-3 py-2.5 text-sm font-medium text-slate-400 transition hover:border-slate-700 hover:bg-slate-800 hover:text-white disabled:opacity-50"
+                          >
+                            <Plus size={16} />
+
+                            {creatingCard
+                              ? "Creating..."
+                              : "Add card"}
+                          </button>
+                        </div>
                       </div>
-
-
-                      {provided.placeholder}
-
-
-                      {/* ADD CARD */}
-                      <button
-                        type="button"
-                        disabled={
-                          creatingCard
-                        }
-                        onClick={() =>
-                          handleCreateCard(
-                            list._id
-                          )
-                        }
-                        className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl p-2 text-sm font-medium text-slate-600 transition hover:bg-white disabled:cursor-not-allowed disabled:opacity-50"
-                      >
-
-                        <Plus
-                          size={16}
-                        />
-
-                        {creatingCard
-                          ? "Creating..."
-                          : "Add card"}
-
-                      </button>
-
-                    </div>
-
-                  )}
-
-                </Droppable>
-
-              )
-            )}
-
-          </DragDropContext>
-
-
-          {/* ADD LIST */}
-          <form
-            onSubmit={
-              handleCreateList
-            }
-            className="w-80 rounded-2xl border-2 border-dashed border-slate-300 bg-slate-50 p-3"
-            onClick={(event) =>
-              event.stopPropagation()
-            }
-          >
-
-            <input
-              type="text"
-              value={listTitle}
-              onChange={(event) =>
-                setListTitle(
-                  event.target.value
+                    )}
+                  </Droppable>
                 )
-              }
-              placeholder="New list name"
-              disabled={
-                creatingList
-              }
-              className="w-full rounded-xl border border-slate-200 bg-white p-3 outline-none focus:border-slate-400 disabled:bg-slate-100"
-            />
+              )}
 
-            <button
-              type="submit"
-              disabled={
-                creatingList ||
-                !listTitle.trim()
-              }
-              className="mt-2 flex w-full items-center justify-center gap-2 rounded-xl bg-slate-900 p-3 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
-            >
+              {/* ADD LIST */}
 
-              <Plus size={16} />
+              <form
+                onSubmit={
+                  handleCreateList
+                }
+                onClick={(event) =>
+                  event.stopPropagation()
+                }
+                className="w-[310px] shrink-0 rounded-2xl border border-dashed border-slate-700 bg-slate-900/40 p-4"
+              >
+                <div className="mb-4 flex items-center gap-2 text-sm font-semibold text-slate-400">
+                  <Plus size={17} />
+                  New list
+                </div>
 
-              {creatingList
-                ? "Adding..."
-                : "Add list"}
+                <input
+                  type="text"
+                  value={listTitle}
+                  onChange={(event) =>
+                    setListTitle(
+                      event.target.value
+                    )
+                  }
+                  placeholder="List name"
+                  disabled={creatingList}
+                  className="w-full rounded-xl border border-slate-800 bg-slate-900 px-3.5 py-3 text-sm text-white outline-none placeholder:text-slate-600 focus:border-indigo-500"
+                />
 
-            </button>
+                <button
+                  type="submit"
+                  disabled={
+                    creatingList ||
+                    !listTitle.trim()
+                  }
+                  className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl bg-indigo-600 px-3 py-3 text-sm font-semibold transition hover:bg-indigo-500 disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  <Plus size={16} />
 
-          </form>
+                  {creatingList
+                    ? "Adding..."
+                    : "Add list"}
+                </button>
+              </form>
+            </div>
+          </DragDropContext>
+        </section>
+      </main>
 
-        </div>
+      {/* =====================================================
+          CARD DETAILS MODAL
+      ===================================================== */}
 
-      </section>
-
-
-      {/* CARD MODAL */}
       {activeCard && (
-
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-5"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm"
           onClick={() =>
             setActiveCard(null)
           }
         >
-
           <div
-            className="w-full max-w-lg rounded-2xl bg-white p-6 shadow-2xl"
+            className="w-full max-w-2xl overflow-hidden rounded-2xl border border-slate-800 bg-slate-900 shadow-2xl"
             onClick={(event) =>
               event.stopPropagation()
             }
           >
+            {/* MODAL HEADER */}
 
-            <div className="flex items-start justify-between">
+            <div className="flex items-start justify-between border-b border-slate-800 px-6 py-5">
+              <div className="min-w-0">
+                <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-indigo-400">
+                  Card Details
+                </p>
 
-              <div>
-
-                <h2 className="text-2xl font-bold">
+                <h2 className="break-words text-xl font-bold text-white">
                   {activeCard.title}
                 </h2>
 
                 <p className="mt-1 text-sm text-slate-500">
-                  Card collaboration
+                  Collaborate with your team
+                  on this card.
                 </p>
-
               </div>
-
 
               <button
                 type="button"
                 onClick={() =>
                   setActiveCard(null)
                 }
-                className="rounded-lg p-2 hover:bg-slate-100"
+                className="rounded-xl p-2 text-slate-500 transition hover:bg-slate-800 hover:text-white"
               >
                 <X size={19} />
               </button>
-
             </div>
 
-
             {/* COMMENTS */}
-            <div className="mt-6 border-t pt-5">
 
-              <h3 className="mb-4 font-semibold">
-                Comments
-              </h3>
+            <div className="p-6">
+              <div className="mb-4 flex items-center gap-2">
+                <MessageSquare
+                  size={18}
+                  className="text-indigo-400"
+                />
 
+                <h3 className="font-semibold">
+                  Comments
+                </h3>
 
-              <div className="max-h-64 space-y-3 overflow-y-auto">
-
-                {comments.length === 0 ? (
-
-                  <p className="text-sm text-slate-400">
-                    No comments yet.
-                  </p>
-
-                ) : (
-
-                  comments.map(
-                    (item) => (
-
-                      <div
-                        key={
-                          item._id
-                        }
-                        className="rounded-xl bg-slate-50 p-3"
-                      >
-
-                        <p className="text-xs font-semibold text-slate-500">
-                          {item.author?.name ||
-                            "User"}
-                        </p>
-
-                        <p className="mt-1 text-sm text-slate-700">
-                          {item.body}
-                        </p>
-
-                      </div>
-
-                    )
-                  )
-
-                )}
-
+                <span className="rounded-full bg-slate-800 px-2 py-0.5 text-xs text-slate-500">
+                  {comments.length}
+                </span>
               </div>
 
+              <div className="max-h-72 space-y-3 overflow-y-auto pr-1">
+                {comments.length ===
+                0 ? (
+                  <div className="rounded-xl border border-dashed border-slate-800 py-10 text-center">
+                    <MessageSquare
+                      size={28}
+                      className="mx-auto mb-2 text-slate-700"
+                    />
 
-              <div className="mt-4 flex gap-2">
+                    <p className="text-sm text-slate-500">
+                      No comments yet.
+                    </p>
 
+                    <p className="mt-1 text-xs text-slate-600">
+                      Start the conversation.
+                    </p>
+                  </div>
+                ) : (
+                  comments.map(
+                    (item) => (
+                      <div
+                        key={item._id}
+                        className="rounded-xl border border-slate-800 bg-slate-950/50 p-4"
+                      >
+                        <div className="flex items-center gap-2">
+                          <div className="flex h-7 w-7 items-center justify-center rounded-full bg-indigo-600 text-xs font-semibold">
+                            {item.author?.name
+                              ?.charAt(0)
+                              ?.toUpperCase() ||
+                              "U"}
+                          </div>
+
+                          <p className="text-xs font-semibold text-slate-300">
+                            {item.author
+                              ?.name ||
+                              "User"}
+                          </p>
+                        </div>
+
+                        <p className="mt-3 text-sm leading-6 text-slate-400">
+                          {item.body}
+                        </p>
+                      </div>
+                    )
+                  )
+                )}
+              </div>
+
+              {/* COMMENT INPUT */}
+
+              <div className="mt-5 flex gap-2">
                 <input
                   value={
                     commentText
                   }
-                  onChange={(
-                    event
-                  ) =>
+                  onChange={(event) =>
                     setCommentText(
                       event.target.value
                     )
                   }
-                  onKeyDown={(
-                    event
-                  ) => {
-
+                  onKeyDown={(event) => {
                     if (
                       event.key ===
                       "Enter"
                     ) {
                       handleAddComment();
                     }
-
                   }}
                   placeholder="Write a comment..."
-                  className="flex-1 rounded-xl border border-slate-200 p-3 outline-none focus:border-slate-400"
+                  className="min-w-0 flex-1 rounded-xl border border-slate-800 bg-slate-950 px-4 py-3 text-sm text-white outline-none placeholder:text-slate-600 focus:border-indigo-500"
                 />
-
 
                 <button
                   type="button"
                   onClick={
                     handleAddComment
                   }
-                  className="rounded-xl bg-slate-900 px-4 text-white hover:bg-slate-800"
+                  disabled={
+                    !commentText.trim()
+                  }
+                  className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-indigo-600 text-white transition hover:bg-indigo-500 disabled:cursor-not-allowed disabled:opacity-40"
                 >
-                  <Send size={18} />
+                  <Send size={17} />
                 </button>
-
               </div>
-
             </div>
-
           </div>
-
         </div>
-
       )}
-
-    </main>
+    </div>
   );
 }

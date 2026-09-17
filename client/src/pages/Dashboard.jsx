@@ -1,81 +1,881 @@
 import { useEffect, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import {
+  LayoutDashboard,
+  Plus,
+  Settings,
+  LogOut,
+  ChevronDown,
+  Users,
+  FolderKanban,
+  Mail,
+  Check,
+  X,
+  RefreshCw,
+} from "lucide-react";
+import { useNavigate } from "react-router-dom";
 import api from "../lib/api";
 import { useOrbitStore } from "../store/useOrbitStore";
 
 export default function Dashboard() {
   const navigate = useNavigate();
-  const user = useOrbitStore((s) => s.user);
-  const setWorkspace = useOrbitStore((s) => s.setWorkspace);
+
+  const {
+    user,
+    workspace,
+    setWorkspace,
+  } = useOrbitStore();
+
   const [workspaces, setWorkspaces] = useState([]);
-  const [name, setName] = useState("");
+  const [invitations, setInvitations] = useState([]);
+
   const [loading, setLoading] = useState(true);
+  const [loadingInvitations, setLoadingInvitations] = useState(true);
+
+  const [showWorkspaceMenu, setShowWorkspaceMenu] = useState(false);
+  const [showCreateWorkspace, setShowCreateWorkspace] = useState(false);
+  const [showCreateBoard, setShowCreateBoard] = useState(false);
+
+  const [workspaceName, setWorkspaceName] = useState("");
+  const [boardName, setBoardName] = useState("");
+
+  const [selectedWorkspace, setSelectedWorkspace] = useState(null);
+
+  const [processingInvitation, setProcessingInvitation] = useState(null);
+
+  /* =========================
+     LOAD WORKSPACES
+  ========================= */
+
+  const loadWorkspaces = async () => {
+    try {
+      const { data } = await api.get("/workspaces");
+
+      const items = data.workspaces || [];
+      setWorkspaces(items);
+
+      if (items.length > 0) {
+        const current =
+          items.find(
+            (item) => String(item._id) === String(workspace?._id)
+          ) || items[0];
+
+        setSelectedWorkspace(current);
+        setWorkspace(current);
+      } else {
+        setSelectedWorkspace(null);
+        setWorkspace(null);
+      }
+    } catch (error) {
+      console.error("Failed to load workspaces:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  /* =========================
+     LOAD INVITATIONS
+  ========================= */
+
+  const loadInvitations = async () => {
+    try {
+      setLoadingInvitations(true);
+
+      const { data } = await api.get("/workspaces/invitations");
+
+      setInvitations(data.invitations || []);
+    } catch (error) {
+      console.error("Failed to load invitations:", error);
+      setInvitations([]);
+    } finally {
+      setLoadingInvitations(false);
+    }
+  };
 
   useEffect(() => {
-    if (!localStorage.getItem("orbit_token")) { navigate("/login"); return; }
-    api.get("/workspaces").then((r) => setWorkspaces(r.data.workspaces)).finally(() => setLoading(false));
-  }, [navigate]);
+    loadWorkspaces();
+    loadInvitations();
+  }, []);
 
-  async function createWorkspace(e) {
+  /* =========================
+     CREATE WORKSPACE
+  ========================= */
+
+  const createWorkspace = async (e) => {
     e.preventDefault();
-    if (!name.trim()) return;
-    const { data } = await api.post("/workspaces", { name });
-    setWorkspaces((items) => [data.workspace, ...items]);
-    setWorkspace(data.workspace);
-    setName("");
-  }
 
-  function logout() {
+    const name = workspaceName.trim();
+
+    if (!name) return;
+
+    try {
+      const { data } = await api.post("/workspaces", {
+        name,
+      });
+
+      const newWorkspace = data.workspace;
+
+      setWorkspaces((prev) => [...prev, newWorkspace]);
+      setSelectedWorkspace(newWorkspace);
+      setWorkspace(newWorkspace);
+
+      setWorkspaceName("");
+      setShowCreateWorkspace(false);
+    } catch (error) {
+      console.error("Failed to create workspace:", error);
+
+      alert(
+        error?.response?.data?.message ||
+          "Failed to create workspace"
+      );
+    }
+  };
+
+  /* =========================
+     CREATE BOARD
+  ========================= */
+
+  const createBoard = async (e) => {
+    e.preventDefault();
+
+    const name = boardName.trim();
+
+    if (!name || !selectedWorkspace) return;
+
+    try {
+      const { data } = await api.post("/boards", {
+        workspaceId: selectedWorkspace._id,
+        name,
+      });
+
+      const newBoard = data.board;
+
+      const updatedWorkspace = {
+        ...selectedWorkspace,
+        boards: [
+          ...(selectedWorkspace.boards || []),
+          newBoard,
+        ],
+      };
+
+      setSelectedWorkspace(updatedWorkspace);
+      setWorkspace(updatedWorkspace);
+
+      setWorkspaces((prev) =>
+        prev.map((item) =>
+          String(item._id) === String(updatedWorkspace._id)
+            ? updatedWorkspace
+            : item
+        )
+      );
+
+      setBoardName("");
+      setShowCreateBoard(false);
+    } catch (error) {
+      console.error("Failed to create board:", error);
+
+      alert(
+        error?.response?.data?.message ||
+          "Failed to create board"
+      );
+    }
+  };
+
+  /* =========================
+     SELECT WORKSPACE
+  ========================= */
+
+  const selectWorkspace = (item) => {
+    setSelectedWorkspace(item);
+    setWorkspace(item);
+    setShowWorkspaceMenu(false);
+  };
+
+  /* =========================
+     ACCEPT INVITATION
+  ========================= */
+
+  const acceptInvitation = async (invitation) => {
+    try {
+      setProcessingInvitation(invitation.workspaceId);
+
+      await api.post(
+        `/workspaces/${invitation.workspaceId}/join`
+      );
+
+      alert(
+        `You joined "${invitation.workspaceName}" successfully!`
+      );
+
+      await loadWorkspaces();
+      await loadInvitations();
+    } catch (error) {
+      console.error("Failed to accept invitation:", error);
+
+      alert(
+        error?.response?.data?.message ||
+          "Failed to accept invitation"
+      );
+    } finally {
+      setProcessingInvitation(null);
+    }
+  };
+
+  /* =========================
+     DECLINE INVITATION
+  ========================= */
+
+  const declineInvitation = async (invitation) => {
+    try {
+      setProcessingInvitation(invitation.workspaceId);
+
+      await api.post(
+        `/workspaces/${invitation.workspaceId}/invitations/${invitation.invitationId}/decline`
+      );
+
+      await loadInvitations();
+    } catch (error) {
+      console.error("Failed to decline invitation:", error);
+
+      alert(
+        error?.response?.data?.message ||
+          "Failed to decline invitation"
+      );
+    } finally {
+      setProcessingInvitation(null);
+    }
+  };
+
+  /* =========================
+     LOGOUT
+  ========================= */
+
+  const logout = () => {
     localStorage.removeItem("orbit_token");
     localStorage.removeItem("orbit_user");
+
+    setWorkspace(null);
+
     navigate("/login");
+  };
+
+  /* =========================
+     LOADING
+  ========================= */
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-slate-950 text-white flex items-center justify-center">
+        <div className="flex items-center gap-3 text-slate-300">
+          <RefreshCw className="w-5 h-5 animate-spin" />
+          Loading Orbit...
+        </div>
+      </div>
+    );
   }
 
-  return (
-    <main className="min-h-screen bg-slate-50">
-      <header className="border-b bg-white">
-        <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-4">
-          <div className="text-2xl font-black">◉ Orbit</div>
-          <div className="flex items-center gap-4">
-            <span className="text-sm text-slate-500">{user?.name}</span>
-            <button onClick={logout} className="rounded-lg border px-3 py-2 text-sm">Logout</button>
-          </div>
-        </div>
-      </header>
-      <section className="mx-auto max-w-7xl p-6">
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold">Your workspaces</h1>
-          <p className="mt-2 text-slate-500">Create a workspace and invite your team.</p>
-        </div>
-        <form onSubmit={createWorkspace} className="mb-8 flex max-w-xl gap-3">
-          <input className="flex-1 rounded-xl border bg-white p-3" placeholder="Workspace name"
-            value={name} onChange={(e) => setName(e.target.value)} />
-          <button className="rounded-xl bg-slate-900 px-5 font-semibold text-white">Create</button>
-        </form>
-        {loading ? <p>Loading...</p> : (
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-            {workspaces.map((workspace) => (
-              <WorkspaceCard key={workspace._id} workspace={workspace} />
-            ))}
-          </div>
-        )}
-      </section>
-    </main>
-  );
-}
+  const activeWorkspace = selectedWorkspace;
 
-function WorkspaceCard({ workspace }) {
+  const boards = activeWorkspace?.boards || [];
+
+  const totalMembers =
+    activeWorkspace?.members?.length || 0;
+
+  /* =========================
+     UI
+  ========================= */
+
   return (
-    <div className="rounded-2xl border bg-white p-5 shadow-soft">
-      <h2 className="text-lg font-bold">{workspace.name}</h2>
-      <p className="mt-1 text-sm text-slate-500">{workspace.members?.length || 0} member(s)</p>
-      <div className="mt-5 space-y-2">
-        {workspace.boards?.map((board) => (
-          <Link key={board._id} to={`/boards/${board._id}`} className="block rounded-xl bg-slate-100 p-3 hover:bg-slate-200">
-            {board.name}
-          </Link>
-        ))}
-      </div>
+    <div className="min-h-screen bg-slate-950 text-white flex">
+      {/* ================= SIDEBAR ================= */}
+
+      <aside className="w-72 bg-slate-900 border-r border-slate-800 flex flex-col">
+        {/* LOGO */}
+
+        <div className="px-6 py-5 border-b border-slate-800">
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-xl bg-indigo-600 flex items-center justify-center">
+              <span className="font-bold text-lg">O</span>
+            </div>
+
+            <div>
+              <h1 className="font-bold text-xl">Orbit</h1>
+              <p className="text-xs text-slate-400">
+                Collaborative Workspace
+              </p>
+            </div>
+          </div>
+        </div>
+
+        {/* WORKSPACE SELECTOR */}
+
+        <div className="px-4 py-4">
+          <div className="relative">
+            <button
+              onClick={() =>
+                setShowWorkspaceMenu((prev) => !prev)
+              }
+              className="w-full flex items-center justify-between gap-2 px-3 py-3 rounded-xl bg-slate-800 hover:bg-slate-700 transition"
+            >
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="w-9 h-9 rounded-lg bg-indigo-500/20 text-indigo-400 flex items-center justify-center">
+                  <FolderKanban size={18} />
+                </div>
+
+                <div className="text-left min-w-0">
+                  <p className="text-sm font-semibold truncate">
+                    {activeWorkspace?.name ||
+                      "No workspace"}
+                  </p>
+
+                  <p className="text-xs text-slate-400">
+                    Workspace
+                  </p>
+                </div>
+              </div>
+
+              <ChevronDown size={17} />
+            </button>
+
+            {showWorkspaceMenu && (
+              <div className="absolute z-30 top-full left-0 right-0 mt-2 bg-slate-800 border border-slate-700 rounded-xl shadow-xl overflow-hidden">
+                <div className="max-h-60 overflow-y-auto">
+                  {workspaces.map((item) => (
+                    <button
+                      key={item._id}
+                      onClick={() =>
+                        selectWorkspace(item)
+                      }
+                      className="w-full text-left px-4 py-3 hover:bg-slate-700 transition"
+                    >
+                      <p className="text-sm font-medium">
+                        {item.name}
+                      </p>
+
+                      <p className="text-xs text-slate-400">
+                        {item.members?.length || 0} members
+                      </p>
+                    </button>
+                  ))}
+                </div>
+
+                <div className="border-t border-slate-700">
+                  <button
+                    onClick={() => {
+                      setShowWorkspaceMenu(false);
+                      setShowCreateWorkspace(true);
+                    }}
+                    className="w-full px-4 py-3 flex items-center gap-2 text-sm text-indigo-400 hover:bg-slate-700"
+                  >
+                    <Plus size={16} />
+                    Create Workspace
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* NAVIGATION */}
+
+        <nav className="px-4 space-y-1">
+          <button className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg bg-indigo-600/15 text-indigo-400">
+            <LayoutDashboard size={18} />
+            Dashboard
+          </button>
+
+          {activeWorkspace && (
+            <button
+              onClick={() =>
+                navigate(
+                  `/workspaces/${activeWorkspace._id}/settings`
+                )
+              }
+              className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-slate-300 hover:bg-slate-800 transition"
+            >
+              <Settings size={18} />
+              Workspace Settings
+            </button>
+          )}
+        </nav>
+
+        {/* BOARDS */}
+
+        <div className="px-4 mt-7">
+          <div className="flex items-center justify-between mb-2">
+            <p className="text-xs uppercase tracking-wider text-slate-500">
+              Boards
+            </p>
+
+            {activeWorkspace && (
+              <button
+                onClick={() => setShowCreateBoard(true)}
+                className="p-1.5 rounded-md hover:bg-slate-800 text-slate-400 hover:text-white"
+                title="Create Board"
+              >
+                <Plus size={16} />
+              </button>
+            )}
+          </div>
+
+          <div className="space-y-1">
+            {boards.map((board) => (
+              <button
+                key={board._id}
+                onClick={() =>
+                  navigate(`/boards/${board._id}`)
+                }
+                className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-slate-300 hover:bg-slate-800 transition text-left"
+              >
+                <FolderKanban size={17} />
+                <span className="truncate">
+                  {board.name}
+                </span>
+              </button>
+            ))}
+
+            {boards.length === 0 && (
+              <p className="text-xs text-slate-500 px-3 py-2">
+                No boards yet
+              </p>
+            )}
+          </div>
+        </div>
+
+        {/* USER */}
+
+        <div className="mt-auto border-t border-slate-800 p-4">
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-full bg-indigo-600 flex items-center justify-center font-semibold">
+              {user?.name?.charAt(0)?.toUpperCase() ||
+                "U"}
+            </div>
+
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium truncate">
+                {user?.name || "User"}
+              </p>
+
+              <p className="text-xs text-slate-500 truncate">
+                {user?.email || ""}
+              </p>
+            </div>
+
+            <button
+              onClick={logout}
+              title="Logout"
+              className="p-2 rounded-lg text-slate-400 hover:text-red-400 hover:bg-slate-800"
+            >
+              <LogOut size={17} />
+            </button>
+          </div>
+        </div>
+      </aside>
+
+      {/* ================= MAIN ================= */}
+
+      <main className="flex-1 overflow-y-auto">
+        <div className="max-w-7xl mx-auto px-8 py-8">
+          {/* HEADER */}
+
+          <div className="flex items-center justify-between gap-6 mb-8">
+            <div>
+              <p className="text-sm text-slate-400 mb-1">
+                Welcome back,
+              </p>
+
+              <h2 className="text-3xl font-bold">
+                {user?.name || "User"}
+              </h2>
+
+              <p className="text-slate-400 mt-1">
+                Manage your collaborative workspace
+                from one place.
+              </p>
+            </div>
+
+            <button
+              onClick={loadInvitations}
+              className="p-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300"
+              title="Refresh invitations"
+            >
+              <RefreshCw
+                size={18}
+                className={
+                  loadingInvitations
+                    ? "animate-spin"
+                    : ""
+                }
+              />
+            </button>
+          </div>
+
+          {/* ================= INVITATIONS ================= */}
+
+          {(invitations.length > 0 ||
+            loadingInvitations) && (
+            <section className="mb-8">
+              <div className="flex items-center gap-2 mb-4">
+                <Mail
+                  size={20}
+                  className="text-indigo-400"
+                />
+
+                <h3 className="text-lg font-semibold">
+                  Workspace Invitations
+                </h3>
+
+                {!loadingInvitations &&
+                  invitations.length > 0 && (
+                    <span className="px-2 py-0.5 rounded-full bg-indigo-600 text-xs">
+                      {invitations.length}
+                    </span>
+                  )}
+              </div>
+
+              {loadingInvitations ? (
+                <div className="bg-slate-900 border border-slate-800 rounded-xl p-5 text-slate-400">
+                  Checking for invitations...
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {invitations.map((invitation) => {
+                    const processing =
+                      processingInvitation ===
+                      String(invitation.workspaceId);
+
+                    return (
+                      <div
+                        key={`${invitation.workspaceId}-${invitation.invitationId}`}
+                        className="bg-slate-900 border border-slate-800 rounded-xl p-5 flex items-center justify-between gap-5"
+                      >
+                        <div className="flex items-center gap-4 min-w-0">
+                          <div className="w-11 h-11 rounded-xl bg-indigo-500/15 text-indigo-400 flex items-center justify-center">
+                            <Mail size={20} />
+                          </div>
+
+                          <div className="min-w-0">
+                            <p className="font-semibold">
+                              {invitation.workspaceName}
+                            </p>
+
+                            <p className="text-sm text-slate-400">
+                              You have been invited to join
+                              this workspace.
+                            </p>
+
+                            {invitation.owner && (
+                              <p className="text-xs text-slate-500 mt-1">
+                                Owner:{" "}
+                                {invitation.owner.name ||
+                                  invitation.owner.email}
+                              </p>
+                            )}
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-2 shrink-0">
+                          <button
+                            disabled={processing}
+                            onClick={() =>
+                              acceptInvitation(
+                                invitation
+                              )
+                            }
+                            className="px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 flex items-center gap-2 text-sm font-medium"
+                          >
+                            <Check size={16} />
+                            Accept
+                          </button>
+
+                          <button
+                            disabled={processing}
+                            onClick={() =>
+                              declineInvitation(
+                                invitation
+                              )
+                            }
+                            className="px-4 py-2 rounded-lg bg-slate-800 hover:bg-red-600/20 hover:text-red-400 disabled:opacity-50 flex items-center gap-2 text-sm font-medium"
+                          >
+                            <X size={16} />
+                            Decline
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </section>
+          )}
+
+          {/* ================= STATS ================= */}
+
+          {activeWorkspace && (
+            <>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
+                <div className="bg-slate-900 border border-slate-800 rounded-xl p-5">
+                  <div className="flex items-center gap-3 mb-3">
+                    <FolderKanban
+                      size={20}
+                      className="text-indigo-400"
+                    />
+                    <p className="text-sm text-slate-400">
+                      Boards
+                    </p>
+                  </div>
+
+                  <p className="text-3xl font-bold">
+                    {boards.length}
+                  </p>
+                </div>
+
+                <div className="bg-slate-900 border border-slate-800 rounded-xl p-5">
+                  <div className="flex items-center gap-3 mb-3">
+                    <Users
+                      size={20}
+                      className="text-indigo-400"
+                    />
+                    <p className="text-sm text-slate-400">
+                      Members
+                    </p>
+                  </div>
+
+                  <p className="text-3xl font-bold">
+                    {totalMembers}
+                  </p>
+                </div>
+
+                <div className="bg-slate-900 border border-slate-800 rounded-xl p-5">
+                  <div className="flex items-center gap-3 mb-3">
+                    <LayoutDashboard
+                      size={20}
+                      className="text-indigo-400"
+                    />
+                    <p className="text-sm text-slate-400">
+                      Workspace
+                    </p>
+                  </div>
+
+                  <p className="text-lg font-semibold truncate">
+                    {activeWorkspace.name}
+                  </p>
+                </div>
+              </div>
+
+              {/* ================= BOARDS ================= */}
+
+              <div className="flex items-center justify-between mb-4">
+                <div>
+                  <h3 className="text-xl font-semibold">
+                    Your Boards
+                  </h3>
+
+                  <p className="text-sm text-slate-400 mt-1">
+                    Open a board to start collaborating.
+                  </p>
+                </div>
+
+                <button
+                  onClick={() => setShowCreateBoard(true)}
+                  className="px-4 py-2.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 flex items-center gap-2 text-sm font-medium"
+                >
+                  <Plus size={17} />
+                  Create Board
+                </button>
+              </div>
+
+              {boards.length === 0 ? (
+                <div className="bg-slate-900 border border-slate-800 rounded-xl p-10 text-center">
+                  <FolderKanban
+                    size={36}
+                    className="mx-auto text-slate-600 mb-4"
+                  />
+
+                  <h4 className="font-semibold text-lg">
+                    No boards yet
+                  </h4>
+
+                  <p className="text-sm text-slate-500 mt-1 mb-5">
+                    Create your first board to get
+                    started.
+                  </p>
+
+                  <button
+                    onClick={() =>
+                      setShowCreateBoard(true)
+                    }
+                    className="px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-sm"
+                  >
+                    Create Board
+                  </button>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
+                  {boards.map((board) => (
+                    <button
+                      key={board._id}
+                      onClick={() =>
+                        navigate(
+                          `/boards/${board._id}`
+                        )
+                      }
+                      className="text-left bg-slate-900 border border-slate-800 rounded-xl p-6 hover:border-indigo-500/50 hover:bg-slate-900/80 transition group"
+                    >
+                      <div className="flex items-center justify-between mb-5">
+                        <div className="w-11 h-11 rounded-xl bg-indigo-500/15 text-indigo-400 flex items-center justify-center">
+                          <FolderKanban size={22} />
+                        </div>
+
+                        <span className="text-xs text-slate-500 group-hover:text-indigo-400">
+                          Open →
+                        </span>
+                      </div>
+
+                      <h4 className="text-lg font-semibold truncate">
+                        {board.name}
+                      </h4>
+
+                      <p className="text-sm text-slate-500 mt-1">
+                        Collaborative Kanban Board
+                      </p>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </>
+          )}
+
+          {/* ================= NO WORKSPACE ================= */}
+
+          {!activeWorkspace && (
+            <div className="bg-slate-900 border border-slate-800 rounded-xl p-12 text-center">
+              <FolderKanban
+                size={42}
+                className="mx-auto text-slate-600 mb-4"
+              />
+
+              <h3 className="text-xl font-semibold">
+                No workspace yet
+              </h3>
+
+              <p className="text-slate-500 mt-2 mb-6">
+                Create a workspace or accept an invitation
+                to get started.
+              </p>
+
+              <button
+                onClick={() =>
+                  setShowCreateWorkspace(true)
+                }
+                className="px-5 py-2.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 flex items-center gap-2 mx-auto"
+              >
+                <Plus size={17} />
+                Create Workspace
+              </button>
+            </div>
+          )}
+        </div>
+      </main>
+
+      {/* ================= CREATE WORKSPACE MODAL ================= */}
+
+      {showCreateWorkspace && (
+        <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
+          <form
+            onSubmit={createWorkspace}
+            className="w-full max-w-md bg-slate-900 border border-slate-800 rounded-2xl p-6"
+          >
+            <h3 className="text-xl font-semibold">
+              Create Workspace
+            </h3>
+
+            <p className="text-sm text-slate-400 mt-1 mb-5">
+              Create a workspace for your team.
+            </p>
+
+            <input
+              autoFocus
+              value={workspaceName}
+              onChange={(e) =>
+                setWorkspaceName(e.target.value)
+              }
+              placeholder="Workspace name"
+              className="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-3 outline-none focus:border-indigo-500"
+            />
+
+            <div className="flex justify-end gap-3 mt-5">
+              <button
+                type="button"
+                onClick={() =>
+                  setShowCreateWorkspace(false)
+                }
+                className="px-4 py-2 rounded-lg bg-slate-800 hover:bg-slate-700"
+              >
+                Cancel
+              </button>
+
+              <button
+                type="submit"
+                className="px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500"
+              >
+                Create
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      {/* ================= CREATE BOARD MODAL ================= */}
+
+      {showCreateBoard && activeWorkspace && (
+        <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
+          <form
+            onSubmit={createBoard}
+            className="w-full max-w-md bg-slate-900 border border-slate-800 rounded-2xl p-6"
+          >
+            <h3 className="text-xl font-semibold">
+              Create Board
+            </h3>
+
+            <p className="text-sm text-slate-400 mt-1 mb-5">
+              Add a new board to{" "}
+              <span className="text-white">
+                {activeWorkspace.name}
+              </span>
+              .
+            </p>
+
+            <input
+              autoFocus
+              value={boardName}
+              onChange={(e) =>
+                setBoardName(e.target.value)
+              }
+              placeholder="Board name"
+              className="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-3 outline-none focus:border-indigo-500"
+            />
+
+            <div className="flex justify-end gap-3 mt-5">
+              <button
+                type="button"
+                onClick={() =>
+                  setShowCreateBoard(false)
+                }
+                className="px-4 py-2 rounded-lg bg-slate-800 hover:bg-slate-700"
+              >
+                Cancel
+              </button>
+
+              <button
+                type="submit"
+                className="px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500"
+              >
+                Create
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
     </div>
   );
 }

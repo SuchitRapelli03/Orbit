@@ -17,6 +17,44 @@ router.get("/", async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
+router.get("/invitations", async (req, res, next) => {
+  try {
+    const workspaces = await Workspace.find({
+      invitations: {
+        $elemMatch: {
+          email: req.user.email,
+          status: "pending"
+        }
+      }
+    })
+      .populate("owner", "name email")
+      .lean();
+
+    const invitations = [];
+
+    for (const workspace of workspaces) {
+      const matchingInvitations = workspace.invitations.filter(
+        (invitation) =>
+          invitation.email === req.user.email &&
+          invitation.status === "pending"
+      );
+
+      for (const invitation of matchingInvitations) {
+        invitations.push({
+          workspaceId: workspace._id,
+          invitationId: invitation._id,
+          workspaceName: workspace.name,
+          owner: workspace.owner
+        });
+      }
+    }
+
+    res.json({ invitations });
+  } catch (e) {
+    next(e);
+  }
+});
+
 router.post("/", async (req, res, next) => {
   try {
     const workspace = await Workspace.create({
@@ -55,5 +93,54 @@ router.post("/:workspaceId/join", async (req, res, next) => {
     res.json({ message: "Joined workspace" });
   } catch (e) { next(e); }
 });
+
+router.post(
+  "/:workspaceId/invitations/:invitationId/decline",
+  async (req, res, next) => {
+    try {
+      const workspace = await Workspace.findOne({
+        _id: req.params.workspaceId
+      });
+
+      if (!workspace) {
+        return res
+          .status(404)
+          .json({ message: "Workspace not found" });
+      }
+
+      const invitation = workspace.invitations.id(
+        req.params.invitationId
+      );
+
+      if (!invitation) {
+        return res
+          .status(404)
+          .json({ message: "Invitation not found" });
+      }
+
+      if (invitation.email !== req.user.email) {
+        return res
+          .status(403)
+          .json({ message: "Invitation access denied" });
+      }
+
+      if (invitation.status !== "pending") {
+        return res
+          .status(400)
+          .json({ message: "Invitation is no longer pending" });
+      }
+
+      invitation.status = "declined";
+
+      await workspace.save();
+
+      res.json({
+        message: "Invitation declined"
+      });
+    } catch (e) {
+      next(e);
+    }
+  }
+);
 
 export default router;

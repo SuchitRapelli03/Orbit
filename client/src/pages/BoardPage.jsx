@@ -97,6 +97,22 @@ export default function BoardPage() {
     useState(false);
 
   /* =========================================================
+     CARD EDITING
+  ========================================================= */
+
+  const [editingCard, setEditingCard] =
+    useState(null);
+
+  const [editingCardTitle, setEditingCardTitle] =
+    useState("");
+
+  const [editingCardDescription, setEditingCardDescription] =
+    useState("");
+
+  const [savingCard, setSavingCard] =
+    useState(false);
+
+  /* =========================================================
      LOAD BOARD
   ========================================================= */
 
@@ -186,14 +202,17 @@ export default function BoardPage() {
 
       if (
         !currentCard ||
-        String(comment.card) !== String(currentCard._id)
+        String(comment.card) !==
+          String(currentCard._id)
       ) {
         return;
       }
 
       setComments((previous) => {
         const alreadyExists = previous.some(
-          (item) => String(item._id) === String(comment._id)
+          (item) =>
+            String(item._id) ===
+            String(comment._id)
         );
 
         if (alreadyExists) {
@@ -368,6 +387,107 @@ export default function BoardPage() {
   }
 
   /* =========================================================
+     EDIT CARD
+  ========================================================= */
+
+  function startEditingCard(card) {
+    setEditingCard(card);
+
+    setEditingCardTitle(
+      card.title || ""
+    );
+
+    setEditingCardDescription(
+      card.description || ""
+    );
+
+    setActiveCard(null);
+  }
+
+  async function saveCardChanges() {
+    const title =
+      editingCardTitle.trim();
+
+    if (
+      !editingCard ||
+      !title ||
+      savingCard
+    ) {
+      return;
+    }
+
+    try {
+      setSavingCard(true);
+      setError("");
+
+      const { data } = await api.patch(
+        `/cards/${editingCard._id}`,
+        {
+          title,
+          description:
+            editingCardDescription.trim(),
+        }
+      );
+
+      upsertCard(data.card);
+
+      setEditingCard(null);
+      setEditingCardTitle("");
+      setEditingCardDescription("");
+    } catch (error) {
+      console.error(
+        "Edit card error:",
+        error
+      );
+
+      setError(
+        error.response?.data?.message ||
+          "Unable to update card."
+      );
+    } finally {
+      setSavingCard(false);
+    }
+  }
+
+  /* =========================================================
+     DELETE CARD
+  ========================================================= */
+
+  async function handleDeleteCard(card) {
+    const confirmed = window.confirm(
+      `Delete "${card.title}"?`
+    );
+
+    if (!confirmed) return;
+
+    try {
+      setError("");
+
+      await api.delete(
+        `/cards/${card._id}`
+      );
+
+      removeCard(card._id);
+
+      if (
+        activeCard?._id === card._id
+      ) {
+        setActiveCard(null);
+      }
+    } catch (error) {
+      console.error(
+        "Delete card error:",
+        error
+      );
+
+      setError(
+        error.response?.data?.message ||
+          "Unable to delete card."
+      );
+    }
+  }
+
+  /* =========================================================
      RENAME LIST
   ========================================================= */
 
@@ -482,7 +602,8 @@ export default function BoardPage() {
     if (
       source.droppableId ===
         destination.droppableId &&
-      source.index === destination.index
+      source.index ===
+        destination.index
     ) {
       return;
     }
@@ -686,6 +807,7 @@ export default function BoardPage() {
       <div className="flex min-h-screen items-center justify-center bg-slate-950 text-white">
         <div className="flex items-center gap-3">
           <div className="h-2 w-2 animate-pulse rounded-full bg-indigo-500" />
+
           <p className="text-slate-400">
             Loading Orbit board...
           </p>
@@ -704,15 +826,18 @@ export default function BoardPage() {
 
   return (
     <div className="flex min-h-screen bg-slate-950 text-white">
+
       {/* =====================================================
           SIDEBAR
       ===================================================== */}
 
       <aside className="hidden w-72 shrink-0 flex-col border-r border-slate-800 bg-slate-900 lg:flex">
+
         {/* BRAND */}
 
         <div className="border-b border-slate-800 px-6 py-5">
           <div className="flex items-center gap-3">
+
             <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-indigo-600 font-bold">
               O
             </div>
@@ -726,22 +851,26 @@ export default function BoardPage() {
                 Collaborative Workspace
               </p>
             </div>
+
           </div>
         </div>
 
         {/* WORKSPACE */}
 
         <div className="border-b border-slate-800 p-4">
+
           <p className="mb-2 px-2 text-[11px] font-semibold uppercase tracking-wider text-slate-500">
             Workspace
           </p>
 
           <div className="flex items-center gap-3 rounded-xl bg-slate-800 px-3 py-3">
+
             <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-indigo-500/15 text-indigo-400">
               <FolderKanban size={18} />
             </div>
 
             <div className="min-w-0">
+
               <p className="truncate text-sm font-semibold">
                 {workspaceName}
               </p>
@@ -749,13 +878,16 @@ export default function BoardPage() {
               <p className="text-xs text-slate-500">
                 Current workspace
               </p>
+
             </div>
+
           </div>
         </div>
 
         {/* NAVIGATION */}
 
         <nav className="space-y-1 px-4 py-5">
+
           <button
             onClick={() =>
               navigate("/dashboard")
@@ -786,22 +918,27 @@ export default function BoardPage() {
               Workspace Settings
             </button>
           )}
+
         </nav>
 
         {/* BOARD INFO */}
 
         <div className="px-4">
+
           <p className="mb-2 px-2 text-[11px] font-semibold uppercase tracking-wider text-slate-500">
             Current Board
           </p>
 
           <div className="rounded-xl border border-slate-800 bg-slate-950/50 p-3">
+
             <div className="flex items-center gap-3">
+
               <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-indigo-600/15 text-indigo-400">
                 <FolderKanban size={17} />
               </div>
 
               <div className="min-w-0">
+
                 <p className="truncate text-sm font-semibold">
                   {board?.name ||
                     "Board"}
@@ -810,15 +947,21 @@ export default function BoardPage() {
                 <p className="text-xs text-slate-500">
                   {lists.length} lists
                 </p>
+
               </div>
+
             </div>
+
           </div>
+
         </div>
 
         {/* USER */}
 
         <div className="mt-auto border-t border-slate-800 p-4">
+
           <div className="flex items-center gap-3">
+
             <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-indigo-600 font-semibold">
               {user?.name
                 ?.charAt(0)
@@ -827,6 +970,7 @@ export default function BoardPage() {
             </div>
 
             <div className="min-w-0 flex-1">
+
               <p className="truncate text-sm font-medium">
                 {user?.name ||
                   "User"}
@@ -835,6 +979,7 @@ export default function BoardPage() {
               <p className="truncate text-xs text-slate-500">
                 {user?.email || ""}
               </p>
+
             </div>
 
             <button
@@ -844,8 +989,11 @@ export default function BoardPage() {
             >
               <LogOut size={17} />
             </button>
+
           </div>
+
         </div>
+
       </aside>
 
       {/* =====================================================
@@ -854,14 +1002,21 @@ export default function BoardPage() {
 
       <main
         className="flex min-w-0 flex-1 flex-col"
-        onClick={() => setOpenMenu(null)}
+        onClick={() =>
+          setOpenMenu(null)
+        }
       >
+
         {/* HEADER */}
 
         <header className="shrink-0 border-b border-slate-800 bg-slate-950/95 backdrop-blur">
+
           <div className="flex min-h-[76px] items-center justify-between gap-5 px-5 lg:px-7">
+
             <div className="min-w-0">
+
               <div className="flex items-center gap-2 text-xs text-slate-500">
+
                 <span>
                   {workspaceName}
                 </span>
@@ -878,31 +1033,40 @@ export default function BoardPage() {
                   {board?.name ||
                     "Board"}
                 </span>
+
               </div>
 
               <h1 className="mt-1 truncate text-2xl font-bold tracking-tight">
                 {board?.name ||
                   "Board"}
               </h1>
+
             </div>
 
             <div className="flex items-center gap-3">
+
               {/* ONLINE */}
 
               <div className="hidden items-center gap-2 rounded-xl border border-slate-800 bg-slate-900 px-3 py-2 sm:flex">
+
                 <span className="relative flex h-2.5 w-2.5">
+
                   <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-50" />
+
                   <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-emerald-500" />
+
                 </span>
 
                 <span className="text-xs font-medium text-slate-400">
                   Live
                 </span>
+
               </div>
 
               {/* SEARCH */}
 
               <div className="flex items-center rounded-xl border border-slate-800 bg-slate-900 px-3">
+
                 <Search
                   size={17}
                   className="text-slate-500"
@@ -929,6 +1093,7 @@ export default function BoardPage() {
                     <X size={15} />
                   </button>
                 )}
+
               </div>
 
               <button
@@ -937,14 +1102,18 @@ export default function BoardPage() {
               >
                 <Bell size={18} />
               </button>
+
             </div>
+
           </div>
 
           {/* BOARD TOOLBAR */}
 
           <div className="flex items-center justify-between border-t border-slate-900 px-5 py-3 lg:px-7">
+
             <div className="flex items-center gap-2 text-sm text-slate-500">
               <Users size={16} />
+
               <span>
                 Collaborative board
               </span>
@@ -956,13 +1125,16 @@ export default function BoardPage() {
                 ? "list"
                 : "lists"}
             </span>
+
           </div>
+
         </header>
 
         {/* ERROR */}
 
         {error && (
           <div className="mx-5 mt-4 flex items-center justify-between rounded-xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-400 lg:mx-7">
+
             <span>{error}</span>
 
             <button
@@ -972,6 +1144,7 @@ export default function BoardPage() {
             >
               <X size={17} />
             </button>
+
           </div>
         )}
 
@@ -980,10 +1153,13 @@ export default function BoardPage() {
         =================================================== */}
 
         <section className="flex-1 overflow-x-auto overflow-y-hidden p-5 lg:p-7">
+
           <DragDropContext
             onDragEnd={handleDragEnd}
           >
+
             <div className="flex min-h-full min-w-max items-start gap-4 pb-5">
+
               {filteredLists.map(
                 (list) => (
                   <Droppable
@@ -996,6 +1172,7 @@ export default function BoardPage() {
                       provided,
                       snapshot
                     ) => (
+
                       <div
                         ref={
                           provided.innerRef
@@ -1007,12 +1184,16 @@ export default function BoardPage() {
                             : "border-slate-800 bg-slate-900/80"
                         }`}
                       >
+
                         {/* LIST HEADER */}
 
                         <div className="shrink-0 border-b border-slate-800 px-4 py-3">
+
                           {editingList ===
                           list._id ? (
+
                             <div className="flex gap-2">
+
                               <input
                                 autoFocus
                                 value={
@@ -1029,6 +1210,7 @@ export default function BoardPage() {
                                 onKeyDown={(
                                   event
                                 ) => {
+
                                   if (
                                     event.key ===
                                     "Enter"
@@ -1046,6 +1228,7 @@ export default function BoardPage() {
                                       null
                                     );
                                   }
+
                                 }}
                                 className="min-w-0 flex-1 rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm text-white outline-none focus:border-indigo-500"
                               />
@@ -1064,10 +1247,15 @@ export default function BoardPage() {
                               >
                                 Save
                               </button>
+
                             </div>
+
                           ) : (
+
                             <div className="flex items-center justify-between gap-2">
+
                               <div className="flex min-w-0 items-center gap-2">
+
                                 <Circle
                                   size={9}
                                   fill="currentColor"
@@ -1083,6 +1271,7 @@ export default function BoardPage() {
                                     ?.length ||
                                     0}
                                 </span>
+
                               </div>
 
                               <div
@@ -1091,6 +1280,7 @@ export default function BoardPage() {
                                   event.stopPropagation()
                                 }
                               >
+
                                 <button
                                   type="button"
                                   onClick={() =>
@@ -1110,7 +1300,9 @@ export default function BoardPage() {
 
                                 {openMenu ===
                                   list._id && (
+
                                   <div className="absolute right-0 top-9 z-30 w-40 overflow-hidden rounded-xl border border-slate-700 bg-slate-900 shadow-2xl">
+
                                     <button
                                       type="button"
                                       onClick={() =>
@@ -1123,6 +1315,7 @@ export default function BoardPage() {
                                       <Pencil
                                         size={15}
                                       />
+
                                       Rename
                                     </button>
 
@@ -1138,24 +1331,33 @@ export default function BoardPage() {
                                       <Trash2
                                         size={15}
                                       />
+
                                       Delete
                                     </button>
+
                                   </div>
                                 )}
+
                               </div>
+
                             </div>
+
                           )}
+
                         </div>
 
                         {/* CARDS */}
 
                         <div className="min-h-[80px] flex-1 overflow-y-auto p-3">
+
                           <div className="space-y-3">
+
                             {(list.cards || []).map(
                               (
                                 card,
                                 index
                               ) => (
+
                                 <Draggable
                                   key={
                                     card._id
@@ -1165,10 +1367,12 @@ export default function BoardPage() {
                                   )}
                                   index={index}
                                 >
+
                                   {(
                                     dragProvided,
                                     snapshot
                                   ) => (
+
                                     <div
                                       ref={
                                         dragProvided.innerRef
@@ -1186,44 +1390,86 @@ export default function BoardPage() {
                                           : "border-slate-700/70 hover:border-slate-600 hover:bg-slate-800/90"
                                       }`}
                                     >
+
+                                      {/* CARD HEADER */}
+
                                       <div className="flex items-start justify-between gap-3">
-                                        <p className="text-sm font-semibold leading-5 text-slate-100">
-                                          {
-                                            card.title
-                                          }
+
+                                        <p className="min-w-0 flex-1 break-words text-sm font-semibold leading-5 text-slate-100">
+                                          {card.title}
                                         </p>
 
-                                        <MoreHorizontal
-                                          size={
-                                            16
+                                        <div
+                                          className="flex shrink-0 items-center gap-1"
+                                          onClick={(event) =>
+                                            event.stopPropagation()
                                           }
-                                          className="shrink-0 text-slate-600 transition group-hover:text-slate-400"
-                                        />
+                                        >
+
+                                          <button
+                                            type="button"
+                                            title="Edit card"
+                                            onClick={() =>
+                                              startEditingCard(
+                                                card
+                                              )
+                                            }
+                                            className="rounded-lg p-1.5 text-slate-500 transition hover:bg-slate-700 hover:text-white"
+                                          >
+                                            <Pencil
+                                              size={15}
+                                            />
+                                          </button>
+
+                                          <button
+                                            type="button"
+                                            title="Delete card"
+                                            onClick={() =>
+                                              handleDeleteCard(
+                                                card
+                                              )
+                                            }
+                                            className="rounded-lg p-1.5 text-slate-500 transition hover:bg-red-500/10 hover:text-red-400"
+                                          >
+                                            <Trash2
+                                              size={15}
+                                            />
+                                          </button>
+
+                                        </div>
+
                                       </div>
 
                                       <div className="mt-4 flex items-center justify-between">
+
                                         <span className="rounded-md bg-indigo-500/10 px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-indigo-400">
                                           {card.priority ||
                                             "Medium"}
                                         </span>
 
                                         <div className="flex items-center gap-1 text-slate-600">
+
                                           <MessageSquare
-                                            size={
-                                              14
-                                            }
+                                            size={14}
                                           />
 
                                           <span className="text-[11px]">
                                             Open
                                           </span>
+
                                         </div>
+
                                       </div>
+
                                     </div>
+
                                   )}
+
                                 </Draggable>
+
                               )
                             )}
+
                           </div>
 
                           {provided.placeholder}
@@ -1231,17 +1477,23 @@ export default function BoardPage() {
                           {(list.cards || [])
                             .length ===
                             0 && (
+
                             <div className="flex min-h-[90px] items-center justify-center rounded-xl border border-dashed border-slate-800 text-center">
+
                               <p className="text-xs text-slate-600">
                                 No cards yet
                               </p>
+
                             </div>
+
                           )}
+
                         </div>
 
                         {/* ADD CARD */}
 
                         <div className="shrink-0 border-t border-slate-800 p-3">
+
                           <button
                             type="button"
                             disabled={
@@ -1254,15 +1506,21 @@ export default function BoardPage() {
                             }
                             className="flex w-full items-center justify-center gap-2 rounded-xl border border-transparent px-3 py-2.5 text-sm font-medium text-slate-400 transition hover:border-slate-700 hover:bg-slate-800 hover:text-white disabled:opacity-50"
                           >
+
                             <Plus size={16} />
 
                             {creatingCard
                               ? "Creating..."
                               : "Add card"}
+
                           </button>
+
                         </div>
+
                       </div>
+
                     )}
+
                   </Droppable>
                 )
               )}
@@ -1278,9 +1536,13 @@ export default function BoardPage() {
                 }
                 className="w-[310px] shrink-0 rounded-2xl border border-dashed border-slate-700 bg-slate-900/40 p-4"
               >
+
                 <div className="mb-4 flex items-center gap-2 text-sm font-semibold text-slate-400">
+
                   <Plus size={17} />
+
                   New list
+
                 </div>
 
                 <input
@@ -1292,7 +1554,9 @@ export default function BoardPage() {
                     )
                   }
                   placeholder="List name"
-                  disabled={creatingList}
+                  disabled={
+                    creatingList
+                  }
                   className="w-full rounded-xl border border-slate-800 bg-slate-900 px-3.5 py-3 text-sm text-white outline-none placeholder:text-slate-600 focus:border-indigo-500"
                 />
 
@@ -1304,17 +1568,186 @@ export default function BoardPage() {
                   }
                   className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl bg-indigo-600 px-3 py-3 text-sm font-semibold transition hover:bg-indigo-500 disabled:cursor-not-allowed disabled:opacity-40"
                 >
+
                   <Plus size={16} />
 
                   {creatingList
                     ? "Adding..."
                     : "Add list"}
+
                 </button>
+
               </form>
+
             </div>
+
           </DragDropContext>
+
         </section>
+
       </main>
+
+      {/* =====================================================
+          EDIT CARD MODAL
+      ===================================================== */}
+
+      {editingCard && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm"
+          onClick={() => {
+            if (!savingCard) {
+              setEditingCard(null);
+            }
+          }}
+        >
+
+          <div
+            className="w-full max-w-lg rounded-2xl border border-slate-800 bg-slate-900 p-6 shadow-2xl"
+            onClick={(event) =>
+              event.stopPropagation()
+            }
+          >
+
+            <div className="mb-6 flex items-center justify-between">
+
+              <div>
+
+                <p className="text-xs font-semibold uppercase tracking-wider text-indigo-400">
+                  Card
+                </p>
+
+                <h2 className="mt-1 text-xl font-bold text-white">
+                  Edit Card
+                </h2>
+
+              </div>
+
+              <button
+                type="button"
+                disabled={
+                  savingCard
+                }
+                onClick={() =>
+                  setEditingCard(null)
+                }
+                className="rounded-xl p-2 text-slate-500 transition hover:bg-slate-800 hover:text-white disabled:opacity-50"
+              >
+                <X size={19} />
+              </button>
+
+            </div>
+
+            <div className="space-y-4">
+
+              {/* TITLE */}
+
+              <div>
+
+                <label className="mb-2 block text-sm font-medium text-slate-300">
+                  Title
+                </label>
+
+                <input
+                  type="text"
+                  value={
+                    editingCardTitle
+                  }
+                  onChange={(event) =>
+                    setEditingCardTitle(
+                      event.target.value
+                    )
+                  }
+                  onKeyDown={(event) => {
+
+                    if (
+                      event.key ===
+                      "Enter"
+                    ) {
+                      saveCardChanges();
+                    }
+
+                    if (
+                      event.key ===
+                      "Escape"
+                    ) {
+                      setEditingCard(
+                        null
+                      );
+                    }
+
+                  }}
+                  autoFocus
+                  className="w-full rounded-xl border border-slate-800 bg-slate-950 px-4 py-3 text-sm text-white outline-none placeholder:text-slate-600 focus:border-indigo-500"
+                  placeholder="Card title"
+                />
+
+              </div>
+
+              {/* DESCRIPTION */}
+
+              <div>
+
+                <label className="mb-2 block text-sm font-medium text-slate-300">
+                  Description
+                </label>
+
+                <textarea
+                  value={
+                    editingCardDescription
+                  }
+                  onChange={(event) =>
+                    setEditingCardDescription(
+                      event.target.value
+                    )
+                  }
+                  rows={5}
+                  className="w-full resize-none rounded-xl border border-slate-800 bg-slate-950 px-4 py-3 text-sm text-white outline-none placeholder:text-slate-600 focus:border-indigo-500"
+                  placeholder="Add a description..."
+                />
+
+              </div>
+
+            </div>
+
+            {/* ACTIONS */}
+
+            <div className="mt-6 flex justify-end gap-3">
+
+              <button
+                type="button"
+                disabled={
+                  savingCard
+                }
+                onClick={() =>
+                  setEditingCard(null)
+                }
+                className="rounded-xl border border-slate-800 px-4 py-2.5 text-sm font-medium text-slate-400 transition hover:bg-slate-800 hover:text-white disabled:opacity-50"
+              >
+                Cancel
+              </button>
+
+              <button
+                type="button"
+                disabled={
+                  savingCard ||
+                  !editingCardTitle.trim()
+                }
+                onClick={
+                  saveCardChanges
+                }
+                className="rounded-xl bg-indigo-600 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-indigo-500 disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                {savingCard
+                  ? "Saving..."
+                  : "Save Changes"}
+              </button>
+
+            </div>
+
+          </div>
+
+        </div>
+      )}
 
       {/* =====================================================
           CARD DETAILS MODAL
@@ -1327,16 +1760,20 @@ export default function BoardPage() {
             setActiveCard(null)
           }
         >
+
           <div
             className="w-full max-w-2xl overflow-hidden rounded-2xl border border-slate-800 bg-slate-900 shadow-2xl"
             onClick={(event) =>
               event.stopPropagation()
             }
           >
+
             {/* MODAL HEADER */}
 
             <div className="flex items-start justify-between border-b border-slate-800 px-6 py-5">
+
               <div className="min-w-0">
+
                 <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-indigo-400">
                   Card Details
                 </p>
@@ -1349,6 +1786,7 @@ export default function BoardPage() {
                   Collaborate with your team
                   on this card.
                 </p>
+
               </div>
 
               <button
@@ -1360,12 +1798,15 @@ export default function BoardPage() {
               >
                 <X size={19} />
               </button>
+
             </div>
 
             {/* COMMENTS */}
 
             <div className="p-6">
+
               <div className="mb-4 flex items-center gap-2">
+
                 <MessageSquare
                   size={18}
                   className="text-indigo-400"
@@ -1378,12 +1819,16 @@ export default function BoardPage() {
                 <span className="rounded-full bg-slate-800 px-2 py-0.5 text-xs text-slate-500">
                   {comments.length}
                 </span>
+
               </div>
 
               <div className="max-h-72 space-y-3 overflow-y-auto pr-1">
+
                 {comments.length ===
                 0 ? (
+
                   <div className="rounded-xl border border-dashed border-slate-800 py-10 text-center">
+
                     <MessageSquare
                       size={28}
                       className="mx-auto mb-2 text-slate-700"
@@ -1396,41 +1841,59 @@ export default function BoardPage() {
                     <p className="mt-1 text-xs text-slate-600">
                       Start the conversation.
                     </p>
+
                   </div>
+
                 ) : (
+
                   comments.map(
                     (item) => (
+
                       <div
-                        key={item._id}
+                        key={
+                          item._id
+                        }
                         className="rounded-xl border border-slate-800 bg-slate-950/50 p-4"
                       >
+
                         <div className="flex items-center gap-2">
+
                           <div className="flex h-7 w-7 items-center justify-center rounded-full bg-indigo-600 text-xs font-semibold">
+
                             {item.author?.name
                               ?.charAt(0)
                               ?.toUpperCase() ||
                               "U"}
+
                           </div>
 
                           <p className="text-xs font-semibold text-slate-300">
+
                             {item.author
                               ?.name ||
                               "User"}
+
                           </p>
+
                         </div>
 
                         <p className="mt-3 text-sm leading-6 text-slate-400">
                           {item.body}
                         </p>
+
                       </div>
+
                     )
                   )
+
                 )}
+
               </div>
 
               {/* COMMENT INPUT */}
 
               <div className="mt-5 flex gap-2">
+
                 <input
                   value={
                     commentText
@@ -1441,12 +1904,14 @@ export default function BoardPage() {
                     )
                   }
                   onKeyDown={(event) => {
+
                     if (
                       event.key ===
                       "Enter"
                     ) {
                       handleAddComment();
                     }
+
                   }}
                   placeholder="Write a comment..."
                   className="min-w-0 flex-1 rounded-xl border border-slate-800 bg-slate-950 px-4 py-3 text-sm text-white outline-none placeholder:text-slate-600 focus:border-indigo-500"
@@ -1464,11 +1929,16 @@ export default function BoardPage() {
                 >
                   <Send size={17} />
                 </button>
+
               </div>
+
             </div>
+
           </div>
+
         </div>
       )}
+
     </div>
   );
 }

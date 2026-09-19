@@ -78,6 +78,73 @@ export default function BoardPage() {
   const [comments, setComments] = useState([]);
   const [commentText, setCommentText] = useState("");
 
+  /* =========================================================
+     REAL-TIME TYPING INDICATOR
+  ========================================================= */
+
+  const [typingUsers, setTypingUsers] = useState({});
+  const [onlineUsers, setOnlineUsers] = useState({});
+  const typingTimeoutRef = useRef(null);
+
+  function stopTyping() {
+    const socket = connectSocket();
+
+    if (socket?.connected) {
+      socket.emit("typing:stop", { boardId });
+    }
+
+    if (typingTimeoutRef.current) {
+      clearTimeout(typingTimeoutRef.current);
+      typingTimeoutRef.current = null;
+    }
+  }
+
+  function handleCommentInputChange(event) {
+  const value = event.target.value;
+
+  console.log("⌨️ INPUT:", value);
+
+  setCommentText(value);
+
+  if (!activeCard) {
+    console.log("❌ No active card");
+    return;
+  }
+
+  const socket = connectSocket();
+
+  console.log("🔌 Socket:", {
+    connected: socket?.connected,
+    id: socket?.id,
+    boardId,
+  });
+
+  if (!value.trim()) {
+    console.log("🛑 Sending typing:stop");
+    stopTyping();
+    return;
+  }
+
+  if (socket?.connected) {
+    console.log("🔥 Sending typing:start", boardId);
+
+    socket.emit("typing:start", {
+      boardId,
+    });
+  } else {
+    console.log("❌ Socket is NOT connected");
+  }
+
+  if (typingTimeoutRef.current) {
+    clearTimeout(typingTimeoutRef.current);
+  }
+
+  typingTimeoutRef.current = setTimeout(() => {
+    console.log("⏱️ Typing timeout → stopping");
+    stopTyping();
+  }, 1500);
+}
+
   useEffect(() => {
     activeCardRef.current = activeCard;
   }, [activeCard]);
@@ -172,6 +239,20 @@ export default function BoardPage() {
         socket.id
       );
 
+      const currentUserId = String(
+        user?._id || user?.id || ""
+      );
+
+      if (currentUserId) {
+        setOnlineUsers((previous) => ({
+          ...previous,
+          [currentUserId]: {
+            userId: currentUserId,
+            name: user?.name || "You",
+          },
+        }));
+      }
+
       socket.emit("board:join", boardId);
     }
 
@@ -194,6 +275,85 @@ export default function BoardPage() {
     function handleNotification(notification) {
       addNotification(notification);
     }
+
+    function handlePresenceList(payload) {
+      if (!Array.isArray(payload)) return;
+
+      const next = {};
+
+      payload.forEach((member) => {
+        if (!member?.userId) return;
+
+        const userId = String(member.userId);
+        next[userId] = {
+          userId,
+          name: member.name || "User",
+        };
+      });
+
+      setOnlineUsers(next);
+    }
+
+    function handlePresenceJoined(payload) {
+      if (!payload?.userId) return;
+
+      const userId = String(payload.userId);
+
+      setOnlineUsers((previous) => ({
+        ...previous,
+        [userId]: {
+          userId,
+          name: payload.name || "User",
+        },
+      }));
+    }
+
+    function handlePresenceLeft(payload) {
+      if (!payload?.userId) return;
+
+      setOnlineUsers((previous) => {
+        const next = { ...previous };
+        delete next[String(payload.userId)];
+        return next;
+      });
+    }
+
+    function handleTypingStart(payload) {
+  console.log("🔥 TYPING START RECEIVED:", payload);
+
+  if (!payload?.userId) {
+    console.log("❌ No userId in typing:start");
+    return;
+  }
+
+  if (
+    String(payload.userId) ===
+    String(user?._id || user?.id)
+  ) {
+    console.log("ℹ️ Ignoring own typing event");
+    return;
+  }
+
+  setTypingUsers((previous) => ({
+    ...previous,
+    [String(payload.userId)]: {
+      userId: String(payload.userId),
+      name: payload.name || "Someone",
+    },
+  }));
+}
+
+    function handleTypingStop(payload) {
+  console.log("🛑 TYPING STOP RECEIVED:", payload);
+
+  if (!payload?.userId) return;
+
+  setTypingUsers((previous) => {
+    const next = { ...previous };
+    delete next[String(payload.userId)];
+    return next;
+  });
+}
 
     function handleCommentCreated(comment) {
       if (!comment?._id || !comment?.card) return;
@@ -251,6 +411,31 @@ export default function BoardPage() {
     );
 
     socket.on(
+      "presence:list",
+      handlePresenceList
+    );
+
+    socket.on(
+      "presence:joined",
+      handlePresenceJoined
+    );
+
+    socket.on(
+      "presence:left",
+      handlePresenceLeft
+    );
+
+    socket.on(
+      "typing:start",
+      handleTypingStart
+    );
+
+    socket.on(
+      "typing:stop",
+      handleTypingStop
+    );
+
+    socket.on(
       "comment:created",
       handleCommentCreated
     );
@@ -293,15 +478,45 @@ export default function BoardPage() {
       );
 
       socket.off(
+        "presence:list",
+        handlePresenceList
+      );
+
+      socket.off(
+        "presence:joined",
+        handlePresenceJoined
+      );
+
+      socket.off(
+        "presence:left",
+        handlePresenceLeft
+      );
+
+      socket.off(
+        "typing:start",
+        handleTypingStart
+      );
+
+      socket.off(
+        "typing:stop",
+        handleTypingStop
+      );
+
+      socket.off(
         "comment:created",
         handleCommentCreated
       );
+
+      stopTyping();
+      setTypingUsers({});
+      setOnlineUsers({});
     };
   }, [
     boardId,
     upsertCard,
     removeCard,
     addNotification,
+    user,
   ]);
 
   /* =========================================================
@@ -705,6 +920,8 @@ export default function BoardPage() {
   ========================================================= */
 
   async function openCard(card) {
+    stopTyping();
+    setTypingUsers({});
     setActiveCard(card);
     setCommentText("");
 
@@ -752,6 +969,7 @@ export default function BoardPage() {
         ]
       );
 
+      stopTyping();
       setCommentText("");
     } catch (error) {
       console.error(
@@ -1058,7 +1276,11 @@ export default function BoardPage() {
                 </span>
 
                 <span className="text-xs font-medium text-slate-400">
-                  Live
+                  {Object.keys(onlineUsers).length} {
+                    Object.keys(onlineUsers).length === 1
+                      ? "collaborator"
+                      : "collaborators"
+                  } online
                 </span>
 
               </div>
@@ -1756,9 +1978,11 @@ export default function BoardPage() {
       {activeCard && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm"
-          onClick={() =>
-            setActiveCard(null)
-          }
+          onClick={() => {
+            stopTyping();
+            setTypingUsers({});
+            setActiveCard(null);
+          }}
         >
 
           <div
@@ -1791,9 +2015,11 @@ export default function BoardPage() {
 
               <button
                 type="button"
-                onClick={() =>
-                  setActiveCard(null)
-                }
+                onClick={() => {
+                  stopTyping();
+                  setTypingUsers({});
+                  setActiveCard(null);
+                }}
                 className="rounded-xl p-2 text-slate-500 transition hover:bg-slate-800 hover:text-white"
               >
                 <X size={19} />
@@ -1890,6 +2116,38 @@ export default function BoardPage() {
 
               </div>
 
+              {/* TYPING INDICATOR */}
+
+              {Object.values(typingUsers).length > 0 && (
+                <div className="mb-2 flex min-h-5 items-center gap-2 text-xs text-slate-500">
+                  <span className="flex items-center gap-1">
+                    <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-indigo-400" />
+                    <span
+                      className="h-1.5 w-1.5 animate-bounce rounded-full bg-indigo-400"
+                      style={{ animationDelay: "120ms" }}
+                    />
+                    <span
+                      className="h-1.5 w-1.5 animate-bounce rounded-full bg-indigo-400"
+                      style={{ animationDelay: "240ms" }}
+                    />
+                  </span>
+
+                  <span>
+                    {Object.values(typingUsers)
+                      .slice(0, 2)
+                      .map((item) => item.name)
+                      .join(" and ")}
+                    {Object.values(typingUsers).length > 2
+                      ? " and others"
+                      : ""}{" "}
+                    {Object.values(typingUsers).length === 1
+                      ? "is"
+                      : "are"}{" "}
+                    typing...
+                  </span>
+                </div>
+              )}
+
               {/* COMMENT INPUT */}
 
               <div className="mt-5 flex gap-2">
@@ -1898,11 +2156,10 @@ export default function BoardPage() {
                   value={
                     commentText
                   }
-                  onChange={(event) =>
-                    setCommentText(
-                      event.target.value
-                    )
+                  onChange={
+                    handleCommentInputChange
                   }
+                  onBlur={stopTyping}
                   onKeyDown={(event) => {
 
                     if (

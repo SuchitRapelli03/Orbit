@@ -1389,7 +1389,34 @@ export default function BoardPage() {
 
             <div className="flex min-h-full min-w-max items-start gap-4 pb-5">
 
-              {filteredLists.map(
+              {search.trim() &&
+              filteredLists.every(
+                (list) => (list.cards || []).length === 0
+              ) ? (
+                <div className="flex min-h-[300px] w-full min-w-[500px] items-center justify-center">
+                  <div className="max-w-md text-center">
+                    <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl border border-slate-800 bg-slate-900">
+                      <Search size={24} className="text-slate-500" />
+                    </div>
+                    <h2 className="text-lg font-semibold text-white">
+                      No cards found
+                    </h2>
+                    <p className="mt-2 text-sm text-slate-500">
+                      No cards match <span className="font-medium text-slate-300">
+                        "{search.trim()}"
+                      </span>.
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => setSearch("")}
+                      className="mt-4 rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-indigo-500"
+                    >
+                      Clear search
+                    </button>
+                  </div>
+                </div>
+              ) : (
+              filteredLists.map(
                 (list) => (
                   <Droppable
                     droppableId={String(
@@ -1752,6 +1779,7 @@ export default function BoardPage() {
 
                   </Droppable>
                 )
+              )
               )}
 
               {/* ADD LIST */}

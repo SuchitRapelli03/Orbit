@@ -1310,6 +1310,11 @@ export default function BoardPage() {
                       event.target.value
                     )
                   }
+                  onKeyDown={(event) => {
+                    if (event.key === "Escape") {
+                      setSearch("");
+                    }
+                  }}
                 />
 
                 {search && (

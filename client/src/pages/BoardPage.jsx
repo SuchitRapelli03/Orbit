@@ -1330,6 +1330,24 @@ export default function BoardPage() {
 
               </div>
 
+              {search.trim() && (
+                <span className="ml-2 whitespace-nowrap text-xs text-slate-500">
+                  {filteredLists.reduce(
+                    (count, list) =>
+                      count + (list.cards || []).length,
+                    0
+                  )}{" "}
+                  {filteredLists.reduce(
+                    (count, list) =>
+                      count + (list.cards || []).length,
+                    0
+                  ) === 1
+                    ? "card"
+                    : "cards"}{" "}
+                  found
+                </span>
+              )}
+
               <button
                 className="hidden rounded-xl border border-slate-800 bg-slate-900 p-2.5 text-slate-400 transition hover:bg-slate-800 hover:text-white sm:block"
                 title="Notifications"

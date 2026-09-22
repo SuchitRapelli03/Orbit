@@ -1,0 +1,163 @@
+/* Workspace overview and notification surfaces */
+.workspace-overview {
+	max-width: 1240px;
+	margin: 0 auto;
+	padding: 2.5rem 2rem 3rem;
+}
+
+.workspace-hero {
+	display: flex;
+	align-items: flex-end;
+	justify-content: space-between;
+	gap: 2rem;
+	padding-bottom: 2rem;
+	border-bottom: 1px solid var(--border-subtle);
+}
+
+.workspace-hero h1 {
+	margin: 0.35rem 0 0.5rem;
+	font-size: clamp(1.75rem, 3vw, 2.75rem);
+	line-height: 1.05;
+	letter-spacing: -0.03em;
+}
+
+.workspace-hero p {
+	max-width: 560px;
+	color: var(--text-secondary);
+	font-size: 0.95rem;
+}
+
+.panel-eyebrow {
+	color: var(--accent-cyan);
+	font-size: 0.68rem;
+	font-weight: 700;
+	letter-spacing: 0.12em;
+	text-transform: uppercase;
+}
+
+.overview-stat-grid {
+	display: grid;
+	grid-template-columns: repeat(4, minmax(0, 1fr));
+	gap: 0.75rem;
+	padding: 1.25rem 0;
+}
+
+.overview-stat {
+	display: grid;
+	grid-template-columns: auto 1fr;
+	column-gap: 0.75rem;
+	align-items: center;
+	padding: 1rem;
+	background: var(--bg-card);
+	border: 1px solid var(--border-subtle);
+	border-radius: var(--radius-sm);
+}
+
+.overview-stat .stat-icon {
+	grid-row: span 3;
+	display: grid;
+	place-items: center;
+	width: 34px;
+	height: 34px;
+	color: var(--accent-cyan);
+	background: var(--accent-cyan-glow);
+	border-radius: var(--radius-xs);
+}
+
+.stat-label, .overview-stat small { color: var(--text-muted); font-size: 0.72rem; }
+.overview-stat strong { font-size: 1.35rem; line-height: 1.1; }
+
+.overview-grid {
+	display: grid;
+	grid-template-columns: 1.1fr 0.9fr;
+	gap: 1rem;
+}
+
+.overview-section {
+	min-width: 0;
+	padding: 1.25rem;
+	background: rgba(19, 25, 38, 0.58);
+	border: 1px solid var(--border-subtle);
+	border-radius: var(--radius-sm);
+}
+
+.section-heading { margin-bottom: 1rem; }
+.section-heading h2 { margin-top: 0.25rem; font-size: 1rem; }
+
+.surface-list, .activity-list { display: grid; gap: 0.5rem; }
+
+.surface-row {
+	display: grid;
+	grid-template-columns: auto 1fr auto;
+	align-items: center;
+	gap: 0.75rem;
+	width: 100%;
+	padding: 0.7rem;
+	color: var(--text-main);
+	text-align: left;
+	background: transparent;
+	border: 1px solid transparent;
+	border-radius: var(--radius-xs);
+	cursor: pointer;
+}
+
+.surface-row:hover { background: var(--bg-surface-hover); border-color: var(--border-light); }
+.surface-row span:nth-child(2) { display: grid; gap: 0.1rem; }
+.surface-row small, .activity-row small { color: var(--text-muted); font-size: 0.72rem; }
+.surface-icon { display: grid; place-items: center; width: 32px; height: 32px; border-radius: var(--radius-xs); }
+.surface-icon-indigo { color: #a5b4fc; background: rgba(99, 102, 241, 0.16); }
+.surface-icon-cyan { color: #67e8f9; background: rgba(6, 182, 212, 0.16); }
+.surface-icon-amber { color: #fcd34d; background: rgba(245, 158, 11, 0.16); }
+
+.activity-row { display: flex; gap: 0.65rem; color: var(--text-secondary); font-size: 0.8rem; }
+.activity-row span:last-child { display: grid; gap: 0.15rem; }
+.activity-row strong, .activity-row b { color: var(--text-main); }
+.activity-dot { width: 7px; height: 7px; margin-top: 0.45rem; flex: 0 0 auto; border-radius: 50%; background: var(--accent-emerald); box-shadow: 0 0 8px var(--accent-emerald); }
+
+.notification-trigger { position: relative; }
+.notification-trigger.active { color: var(--accent-primary); border-color: var(--accent-primary); }
+.notification-count { position: absolute; top: -5px; right: -5px; min-width: 16px; height: 16px; padding: 0 3px; display: grid; place-items: center; color: white; background: var(--accent-rose); border: 2px solid var(--bg-primary); border-radius: 50%; font-size: 0.58rem; font-weight: 700; }
+
+.notification-panel {
+	position: fixed;
+	top: 72px;
+	right: 1.5rem;
+	z-index: 30;
+	width: min(390px, calc(100vw - 2rem));
+	max-height: min(620px, calc(100vh - 90px));
+	overflow: hidden;
+	background: var(--bg-surface-elevated);
+	border: 1px solid var(--border-light);
+	border-radius: var(--radius-sm);
+	box-shadow: var(--shadow-lg);
+}
+
+.notification-panel-header, .notification-panel-actions { display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: 1rem 1.1rem; }
+.notification-panel-header { border-bottom: 1px solid var(--border-subtle); }
+.notification-panel-header h2 { margin-top: 0.2rem; font-size: 1rem; }
+.notification-panel-actions { color: var(--text-muted); font-size: 0.72rem; border-bottom: 1px solid var(--border-subtle); }
+.text-action { display: inline-flex; align-items: center; gap: 0.35rem; color: var(--accent-cyan); background: transparent; border: 0; cursor: pointer; font-size: 0.72rem; }
+.text-action:disabled { opacity: 0.45; cursor: default; }
+.notification-list { max-height: 460px; overflow-y: auto; }
+.notification-item { display: flex; gap: 0.7rem; padding: 0.85rem 1.1rem; border-bottom: 1px solid var(--border-subtle); }
+.notification-item.unread { background: rgba(99, 102, 241, 0.08); }
+.notification-icon { display: grid; place-items: center; width: 28px; height: 28px; flex: 0 0 auto; color: var(--accent-cyan); background: rgba(6, 182, 212, 0.12); border-radius: 50%; }
+.notification-copy { display: grid; gap: 0.15rem; min-width: 0; }
+.notification-copy strong { font-size: 0.78rem; }
+.notification-copy span { color: var(--text-secondary); font-size: 0.76rem; overflow-wrap: anywhere; }
+.notification-copy time { color: var(--text-muted); font-size: 0.68rem; }
+.notification-empty { display: grid; place-items: center; gap: 0.5rem; padding: 3rem 1rem; color: var(--text-muted); font-size: 0.8rem; }
+
+@media (max-width: 900px) {
+	.overview-stat-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+	.overview-grid { grid-template-columns: 1fr; }
+}
+
+@media (max-width: 640px) {
+	.workspace-overview { padding: 1.25rem 1rem 2rem; }
+	.workspace-hero { align-items: flex-start; flex-direction: column; gap: 1rem; }
+	.workspace-hero .btn-primary { width: 100%; justify-content: center; }
+	.overview-stat-grid { gap: 0.5rem; }
+	.overview-stat { padding: 0.75rem; }
+	.notification-panel { top: 68px; right: 1rem; }
+}

@@ -58,7 +58,7 @@ export function RealtimeProvider({ children }) {
     }
   });
 
-  const [members, setMembers] = useState(INITIAL_MEMBERS);
+  const [members] = useState(INITIAL_MEMBERS);
   const [activeClients, setActiveClients] = useState(1);
   const [syncLatency, setSyncLatency] = useState(8);
   const [activityFeed, setActivityFeed] = useState([

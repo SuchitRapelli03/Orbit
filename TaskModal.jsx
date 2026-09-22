@@ -3,11 +3,7 @@ import {
   X,
   Trash2,
   Send,
-  Plus,
-  Clock,
-  CheckCircle2,
-  Tag,
-  Users
+  Plus
 } from 'lucide-react';
 import { useRealtime } from './RealtimeContext';
 import Avatar from './src/components/Common/Avatar';

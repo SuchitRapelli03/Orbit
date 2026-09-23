@@ -26,7 +26,6 @@ export function createSocketServer(httpServer) {
     ],
   });
 
-
   // ==========================================================
   // SOCKET AUTHENTICATION
   // ==========================================================
@@ -83,7 +82,6 @@ export function createSocketServer(httpServer) {
     }
   });
 
-
   // ==========================================================
   // CONNECTION
   // ==========================================================
@@ -95,7 +93,6 @@ export function createSocketServer(httpServer) {
       console.log(
         `Socket connected: ${socket.user.name} (${socket.id})`
       );
-
 
       // ========================================================
       // JOIN BOARD
@@ -119,7 +116,6 @@ export function createSocketServer(httpServer) {
               );
             }
 
-
             // --------------------------------------------------
             // Find board
             // --------------------------------------------------
@@ -140,7 +136,6 @@ export function createSocketServer(httpServer) {
                 }
               );
             }
-
 
             // --------------------------------------------------
             // Verify workspace membership
@@ -167,10 +162,7 @@ export function createSocketServer(httpServer) {
               );
             }
 
-
             // --------------------------------------------------
-            // IMPORTANT FIX
-            //
             // Workspace members automatically get
             // access to existing boards.
             // --------------------------------------------------
@@ -183,7 +175,6 @@ export function createSocketServer(httpServer) {
                     socket.user._id
                   )
               );
-
 
             if (!isBoardMember) {
 
@@ -209,7 +200,6 @@ export function createSocketServer(httpServer) {
               );
             }
 
-
             // --------------------------------------------------
             // Join board room
             // --------------------------------------------------
@@ -221,6 +211,44 @@ export function createSocketServer(httpServer) {
               boardRoom
             );
 
+            // --------------------------------------------------
+            // Send current board presence
+            // to the newly joined user.
+            // --------------------------------------------------
+
+            const roomSocketIds =
+              io.sockets.adapter.rooms.get(
+                boardRoom
+              ) || new Set();
+
+            const onlineMembers = [];
+
+            for (const socketId of roomSocketIds) {
+
+              const memberSocket =
+                io.sockets.sockets.get(
+                  socketId
+                );
+
+              if (
+                !memberSocket?.user
+              ) {
+                continue;
+              }
+
+              onlineMembers.push({
+                userId:
+                  memberSocket.user._id.toString(),
+
+                name:
+                  memberSocket.user.name,
+              });
+            }
+
+            socket.emit(
+              "presence:list",
+              onlineMembers
+            );
 
             // --------------------------------------------------
             // Join workspace room
@@ -232,7 +260,6 @@ export function createSocketServer(httpServer) {
             socket.join(
               workspaceRoom
             );
-
 
             // --------------------------------------------------
             // Notify other board users
@@ -250,7 +277,6 @@ export function createSocketServer(httpServer) {
                     socket.user.name,
                 }
               );
-
 
             console.log(
               `${socket.user.name} joined board ${boardId}`
@@ -273,7 +299,6 @@ export function createSocketServer(httpServer) {
           }
         }
       );
-
 
       // ========================================================
       // LEAVE BOARD
@@ -332,7 +357,6 @@ export function createSocketServer(httpServer) {
         }
       );
 
-
       // ========================================================
       // TYPING START
       // ========================================================
@@ -374,7 +398,6 @@ export function createSocketServer(httpServer) {
         }
       );
 
-
       // ========================================================
       // TYPING STOP
       // ========================================================
@@ -413,6 +436,36 @@ export function createSocketServer(httpServer) {
         }
       );
 
+      // ========================================================
+      // DISCONNECTING
+      // ========================================================
+
+      socket.on(
+        "disconnecting",
+        () => {
+
+          for (const room of socket.rooms) {
+
+            if (
+              !room.startsWith(
+                "board:"
+              )
+            ) {
+              continue;
+            }
+
+            socket
+              .to(room)
+              .emit(
+                "presence:left",
+                {
+                  userId:
+                    socket.user._id.toString(),
+                }
+              );
+          }
+        }
+      );
 
       // ========================================================
       // DISCONNECT
@@ -431,7 +484,6 @@ export function createSocketServer(httpServer) {
 
     }
   );
-
 
   return io;
 }

@@ -1,10 +1,8 @@
 import { Router } from "express";
-
 import Card from "../models/Card.js";
 import List from "../models/List.js";
 import Board from "../models/Board.js";
 import Comment from "../models/Comment.js";
-
 import { requireAuth } from "../middleware/auth.js";
 import { invalidateBoard } from "../utils/redis.js";
 
@@ -23,30 +21,35 @@ async function boardForList(listId) {
 function emitToBoard(req, boardId, event, payload) {
   const io = req.app.get("io");
 
-  if (!io || !boardId) return;
+  if (!io) return;
 
   io.to(`board:${boardId}`).emit(event, payload);
 }
 
-
-// ============================================================
-// CREATE CARD
-// ============================================================
-
+/*
+ * Create a card
+ */
 router.post("/", async (req, res, next) => {
   try {
-    const list = await List.findById(req.body.listId);
+    const { listId, title } = req.body;
 
-    const board = list
-      ? await Board.findById(list.board)
-      : null;
+    const list = await List.findById(listId);
 
-    if (
-      !board ||
-      !board.members.some((id) =>
-        id.equals(req.user._id)
-      )
-    ) {
+    if (!list) {
+      return res.status(404).json({
+        message: "List not found"
+      });
+    }
+
+    const board = await Board.findById(list.board);
+
+    if (!board) {
+      return res.status(404).json({
+        message: "Board not found"
+      });
+    }
+
+    if (!board.members.some((id) => id.equals(req.user._id))) {
       return res.status(403).json({
         message: "Board access denied"
       });
@@ -54,43 +57,35 @@ router.post("/", async (req, res, next) => {
 
     const last = await Card.findOne({
       list: list._id
-    }).sort({
-      position: -1
-    });
+    }).sort({ position: -1 });
 
     const card = await Card.create({
       list: list._id,
-      title: req.body.title,
+      title,
       position: (last?.position ?? -1) + 1
     });
 
     await invalidateBoard(board._id);
 
-    // Real-time update
     emitToBoard(
       req,
-      board._id.toString(),
+      board._id,
       "card:created",
       card
     );
 
     res.status(201).json({ card });
-
   } catch (e) {
     next(e);
   }
 });
 
-
-// ============================================================
-// UPDATE CARD
-// ============================================================
-
+/*
+ * Update card details
+ */
 router.patch("/:id", async (req, res, next) => {
   try {
-    const card = await Card.findById(
-      req.params.id
-    );
+    const card = await Card.findById(req.params.id);
 
     if (!card) {
       return res.status(404).json({
@@ -100,48 +95,67 @@ router.patch("/:id", async (req, res, next) => {
 
     const board = await boardForList(card.list);
 
-    if (
-      !board ||
-      !board.members.some((id) =>
-        id.equals(req.user._id)
-      )
-    ) {
+    if (!board) {
+      return res.status(404).json({
+        message: "Board not found"
+      });
+    }
+
+    if (!board.members.some((id) => id.equals(req.user._id))) {
       return res.status(403).json({
         message: "Board access denied"
       });
     }
 
-    Object.assign(card, req.body);
+    /*
+     * Only allow fields that are actually editable
+     * through the normal card update endpoint.
+     *
+     * list and position must be changed through /move.
+     */
+    const allowedFields = [
+      "title",
+      "description",
+      "priority",
+      "assignee",
+      "dueDate"
+    ];
+
+    const updates = {};
+
+    for (const field of allowedFields) {
+      if (Object.prototype.hasOwnProperty.call(req.body, field)) {
+        updates[field] = req.body[field];
+      }
+    }
+
+    Object.assign(card, updates);
 
     await card.save();
 
     await invalidateBoard(board._id);
 
-    // Real-time update
     emitToBoard(
       req,
-      board._id.toString(),
+      board._id,
       "card:updated",
       card
     );
 
     res.json({ card });
-
   } catch (e) {
     next(e);
   }
 });
 
-
-// ============================================================
-// MOVE CARD
-// ============================================================
-
+/*
+ * Move card between lists / positions
+ */
 router.patch("/:id/move", async (req, res, next) => {
   try {
-    const card = await Card.findById(
-      req.params.id
-    );
+    const { listId, position } = req.body;
+
+    const card = await Card.findById(req.params.id);
 
     if (!card) {
       return res.status(404).json({
@@ -149,11 +163,16 @@ router.patch("/:id/move", async (req, res, next) => {
       });
     }
 
-    const oldBoard = await boardForList(card.list);
+    const currentBoard = await boardForList(card.list);
+
+    if (!currentBoard) {
+      return res.status(404).json({
+        message: "Board not found"
+      });
+    }
 
     if (
-      !oldBoard ||
-      !oldBoard.members.some((id) =>
+      !currentBoard.members.some((id) =>
         id.equals(req.user._id)
       )
     ) {
@@ -162,9 +181,10 @@ router.patch("/:id/move", async (req, res, next) => {
       });
     }
 
-    const destinationList = await List.findById(
-      req.body.listId
-    );
+    /*
+     * Make sure the destination list exists.
+     */
+    const destinationList = await List.findById(listId);
 
     if (!destinationList) {
       return res.status(404).json({
@@ -172,60 +192,34 @@ router.patch("/:id/move", async (req, res, next) => {
       });
     }
 
+    /*
+     * A card can only move inside the same board.
+     */
     if (
-      !destinationList.board.equals(
-        oldBoard._id
-      )
+      destinationList.board.toString() !==
+      currentBoard._id.toString()
     ) {
       return res.status(400).json({
-        message: "Destination list belongs to another board"
+        message: "Card cannot be moved to another board"
       });
     }
 
-    card.list = destinationList._id;
-    card.position = req.body.position ?? 0;
-
-    await card.save();
-
-    await invalidateBoard(oldBoard._id);
-
-    // Real-time update
-    emitToBoard(
-      req,
-      oldBoard._id.toString(),
-      "card:moved",
-      card
+    /*
+     * Make sure the destination list belongs to a board
+     * that the current user can access.
+     */
+    const destinationBoard = await Board.findById(
+      destinationList.board
     );
 
-    res.json({ card });
-
-  } catch (e) {
-    next(e);
-  }
-});
-
-
-// ============================================================
-// DELETE CARD
-// ============================================================
-
-router.delete("/:id", async (req, res, next) => {
-  try {
-    const card = await Card.findById(
-      req.params.id
-    );
-
-    if (!card) {
+    if (!destinationBoard) {
       return res.status(404).json({
-        message: "Card not found"
+        message: "Destination board not found"
       });
     }
-
-    const board = await boardForList(card.list);
 
     if (
-      !board ||
-      !board.members.some((id) =>
+      !destinationBoard.members.some((id) =>
         id.equals(req.user._id)
       )
     ) {
@@ -234,42 +228,32 @@ router.delete("/:id", async (req, res, next) => {
       });
     }
 
-    const cardId = card._id.toString();
+    card.list = destinationList._id;
+    card.position = position ?? 0;
 
-    await card.deleteOne();
+    await card.save();
 
-    await invalidateBoard(board._id);
+    await invalidateBoard(currentBoard._id);
 
-    // Real-time update
     emitToBoard(
       req,
-      board._id.toString(),
-      "card:deleted",
-      {
-        cardId
-      }
+      currentBoard._id,
+      "card:moved",
+      card
     );
 
-    res.json({
-      message: "Card deleted",
-      cardId
-    });
-
+    res.json({ card });
   } catch (e) {
     next(e);
   }
 });
 
-
-// ============================================================
-// ADD COMMENT
-// ============================================================
-
-router.post("/:id/comments", async (req, res, next) => {
+/*
+ * Delete card
+ */
+router.delete("/:id", async (req, res, next) => {
   try {
-    const card = await Card.findById(
-      req.params.id
-    );
+    const card = await Card.findById(req.params.id);
 
     if (!card) {
       return res.status(404).json({
@@ -279,12 +263,62 @@ router.post("/:id/comments", async (req, res, next) => {
 
     const board = await boardForList(card.list);
 
-    if (
-      !board ||
-      !board.members.some((id) =>
-        id.equals(req.user._id)
-      )
-    ) {
+    if (!board) {
+      return res.status(404).json({
+        message: "Board not found"
+      });
+    }
+
+    if (!board.members.some((id) => id.equals(req.user._id))) {
+      return res.status(403).json({
+        message: "Board access denied"
+      });
+    }
+
+    await card.deleteOne();
+
+    await invalidateBoard(board._id);
+
+    emitToBoard(
+      req,
+      board._id,
+      "card:deleted",
+      {
+        cardId: card._id
+      }
+    );
+
+    res.json({
+      message: "Card deleted",
+      cardId: card._id
+    });
+  } catch (e) {
+    next(e);
+  }
+});
+
+/*
+ * Create comment
+ */
+router.post("/:id/comments", async (req, res, next) => {
+  try {
+    const card = await Card.findById(req.params.id);
+
+    if (!card) {
+      return res.status(404).json({
+        message: "Card not found"
+      });
+    }
+
+    const board = await boardForList(card.list);
+
+    if (!board) {
+      return res.status(404).json({
+        message: "Board not found"
+      });
+    }
+
+    if (!board.members.some((id) => id.equals(req.user._id))) {
       return res.status(403).json({
         message: "Board access denied"
       });
@@ -301,38 +335,56 @@ router.post("/:id/comments", async (req, res, next) => {
       "name"
     );
 
-    res.status(201).json({
+    emitToBoard(
+      req,
+      board._id,
+      "comment:created",
       comment
-    });
+    );
 
+    res.status(201).json({ comment });
   } catch (e) {
     next(e);
   }
 });
 
-
-// ============================================================
-// GET COMMENTS
-// ============================================================
-
+/*
+ * Get comments
+ */
 router.get("/:id/comments", async (req, res, next) => {
   try {
+    const card = await Card.findById(req.params.id);
+
+    if (!card) {
+      return res.status(404).json({
+        message: "Card not found"
+      });
+    }
+
+    const board = await boardForList(card.list);
+
+    if (!board) {
+      return res.status(404).json({
+        message: "Board not found"
+      });
+    }
+
+    if (!board.members.some((id) => id.equals(req.user._id))) {
+      return res.status(403).json({
+        message: "Board access denied"
+      });
+    }
+
     const comments = await Comment.find({
-      card: req.params.id
+      card: card._id
     })
       .populate("author", "name")
-      .sort({
-        createdAt: 1
-      });
+      .sort({ createdAt: 1 });
 
-    res.json({
-      comments
-    });
-
+    res.json({ comments });
   } catch (e) {
     next(e);
   }
 });
-
 
 export default router;

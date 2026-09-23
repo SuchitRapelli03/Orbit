@@ -1317,16 +1317,16 @@ export default function BoardPage() {
                   }}
                 />
 
-                {search && (
-                  <button
-                    onClick={() =>
-                      setSearch("")
-                    }
-                    className="text-slate-500 hover:text-white"
-                  >
-                    <X size={15} />
-                  </button>
-                )}
+               {search.trim() && (
+  <button
+    type="button"
+    onClick={() => setSearch("")}
+    className="rounded-md p-1 text-slate-500 transition hover:bg-slate-800 hover:text-white"
+    title="Clear search"
+  >
+    <X size={15} />
+  </button>
+)}
 
               </div>
 

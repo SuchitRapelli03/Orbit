@@ -71,6 +71,9 @@ export default function Topbar({
           id="new-task-btn"
           title="Create a new task in Sprint 42"
         >
+          <Plus size={16} />
+          <span>New Task</span>
+        </button>
 
         <button
           className={`icon-btn notification-trigger ${isNotificationsOpen ? 'active' : ''}`}
@@ -79,9 +82,6 @@ export default function Topbar({
         >
           <Bell size={17} />
           {unreadNotifications > 0 && <span className="notification-count">{unreadNotifications > 9 ? '9+' : unreadNotifications}</span>}
-        </button>
-          <Plus size={16} />
-          <span>New Task</span>
         </button>
 
         {/* Chat Toggle Button */}

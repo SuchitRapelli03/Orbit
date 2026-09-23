@@ -285,21 +285,21 @@ export default function Dashboard() {
   ========================= */
 
   return (
-    <div className="min-h-screen bg-slate-950 text-white flex">
+    <div className="min-h-screen bg-[#020c1b] text-white flex">
       {/* ================= SIDEBAR ================= */}
 
-      <aside className="w-72 bg-slate-900 border-r border-slate-800 flex flex-col">
+      <aside className="w-[360px] border-r border-[#1b2b45] bg-[#0c1628] flex flex-col">
         {/* LOGO */}
 
-        <div className="px-6 py-5 border-b border-slate-800">
+        <div className="px-6 py-5 border-b border-[#1b2b45]">
           <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl bg-indigo-600 flex items-center justify-center">
-              <span className="font-bold text-lg">O</span>
+            <div className="w-11 h-11 rounded-2xl bg-[#6d5ef6] flex items-center justify-center shadow-[0_0_0_1px_rgba(109,94,246,0.4)]">
+              <span className="font-bold text-2xl leading-none">O</span>
             </div>
 
             <div>
-              <h1 className="font-bold text-xl">Orbit</h1>
-              <p className="text-xs text-slate-400">
+              <h1 className="font-bold text-[24px] leading-none text-white">Orbit</h1>
+              <p className="text-[14px] text-[#9aa7bd] mt-2">
                 Collaborative Workspace
               </p>
             </div>
@@ -314,20 +314,20 @@ export default function Dashboard() {
               onClick={() =>
                 setShowWorkspaceMenu((prev) => !prev)
               }
-              className="w-full flex items-center justify-between gap-2 px-3 py-3 rounded-xl bg-slate-800 hover:bg-slate-700 transition"
+              className="w-full flex items-center justify-between gap-2 px-3 py-3 rounded-xl bg-[#2a3654] hover:bg-[#2f3d5f] transition shadow-[inset_0_0_0_1px_rgba(148,163,184,0.08)]"
             >
               <div className="flex items-center gap-3 min-w-0">
-                <div className="w-9 h-9 rounded-lg bg-indigo-500/20 text-indigo-400 flex items-center justify-center">
+                <div className="w-11 h-11 rounded-xl bg-[#4b5be1]/15 text-[#b7c0ff] flex items-center justify-center">
                   <FolderKanban size={18} />
                 </div>
 
                 <div className="text-left min-w-0">
-                  <p className="text-sm font-semibold truncate">
+                  <p className="text-[17px] font-semibold truncate text-white">
                     {activeWorkspace?.name ||
                       "No workspace"}
                   </p>
 
-                  <p className="text-xs text-slate-400">
+                  <p className="text-[12px] text-[#9aa7bd]">
                     Workspace
                   </p>
                 </div>
@@ -377,8 +377,8 @@ export default function Dashboard() {
 
         {/* NAVIGATION */}
 
-        <nav className="px-4 space-y-1">
-          <button className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg bg-indigo-600/15 text-indigo-400">
+        <nav className="px-4 mt-4 space-y-1">
+          <button className="w-full flex items-center gap-3 px-3 py-3 rounded-xl bg-[#4d5cff]/15 text-[#c6d0ff] shadow-[inset_0_0_0_1px_rgba(109,94,246,0.12)] text-[18px] font-medium">
             <LayoutDashboard size={18} />
             Dashboard
           </button>
@@ -400,9 +400,9 @@ export default function Dashboard() {
 
         {/* BOARDS */}
 
-        <div className="px-4 mt-7">
+        <div className="px-4 mt-8">
           <div className="flex items-center justify-between mb-2">
-            <p className="text-xs uppercase tracking-wider text-slate-500">
+            <p className="text-[12px] uppercase tracking-[0.12em] text-[#8f9abc]">
               Boards
             </p>
 
@@ -434,7 +434,7 @@ export default function Dashboard() {
             ))}
 
             {boards.length === 0 && (
-              <p className="text-xs text-slate-500 px-3 py-2">
+              <p className="text-[15px] text-[#8f9abc] px-3 py-2">
                 No boards yet
               </p>
             )}
@@ -473,21 +473,21 @@ export default function Dashboard() {
 
       {/* ================= MAIN ================= */}
 
-      <main className="flex-1 overflow-y-auto">
-        <div className="max-w-7xl mx-auto px-8 py-8">
+      <main className="flex-1 overflow-y-auto bg-[#020c1b]">
+        <div className="max-w-[1200px] mx-auto px-8 py-8">
           {/* HEADER */}
 
-          <div className="flex items-center justify-between gap-6 mb-8">
+          <div className="flex items-center justify-between gap-6 mb-8 pt-5">
             <div>
-              <p className="text-sm text-slate-400 mb-1">
+              <p className="text-[20px] text-[#b8c1d9] mb-1 font-medium">
                 Welcome back,
               </p>
 
-              <h2 className="text-3xl font-bold">
+              <h2 className="text-[56px] font-bold leading-[1.05] tracking-[-0.04em] text-white">
                 {user?.name || "User"}
               </h2>
 
-              <p className="text-slate-400 mt-1">
+              <p className="text-[24px] text-[#b7c0d9] mt-3 font-medium">
                 Manage your collaborative workspace
                 from one place.
               </p>
@@ -495,11 +495,11 @@ export default function Dashboard() {
 
             <button
               onClick={loadInvitations}
-              className="p-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300"
+              className="mt-3 mr-2 h-16 w-16 rounded-2xl bg-[#1d2a3c] hover:bg-[#24314c] text-[#dfe8ff] shadow-[inset_0_0_0_1px_rgba(148,163,184,0.12)] flex items-center justify-center"
               title="Refresh invitations"
             >
               <RefreshCw
-                size={18}
+                size={30}
                 className={
                   loadingInvitations
                     ? "animate-spin"
@@ -748,28 +748,29 @@ export default function Dashboard() {
           {/* ================= NO WORKSPACE ================= */}
 
           {!activeWorkspace && (
-            <div className="bg-slate-900 border border-slate-800 rounded-xl p-12 text-center">
-              <FolderKanban
-                size={42}
-                className="mx-auto text-slate-600 mb-4"
-              />
+            <div className="bg-[#0d1a2a] border border-[#1b2b45] rounded-[22px] p-12 text-center min-h-[520px] flex flex-col items-center justify-center">
+              <div className="w-24 h-24 rounded-2xl border border-[#68789a] bg-transparent flex items-center justify-center mb-8 opacity-80">
+                <FolderKanban
+                  size={52}
+                  className="text-[#dfe8ff] opacity-80"
+                />
+              </div>
 
-              <h3 className="text-xl font-semibold">
+              <h3 className="text-[36px] font-semibold tracking-[-0.03em] text-white">
                 No workspace yet
               </h3>
 
-              <p className="text-slate-500 mt-2 mb-6">
-                Create a workspace or accept an invitation
-                to get started.
+              <p className="text-[22px] text-[#b7c0d9] mt-6 leading-relaxed max-w-[760px]">
+                Create a workspace or accept an invitation to get started.
               </p>
 
               <button
                 onClick={() =>
                   setShowCreateWorkspace(true)
                 }
-                className="px-5 py-2.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 flex items-center gap-2 mx-auto"
+                className="mt-8 px-7 py-4 rounded-2xl bg-[#5a5ff8] hover:bg-[#4f54f0] flex items-center gap-3 mx-auto text-[22px] font-semibold shadow-[0_8px_20px_rgba(90,95,248,0.38)]"
               >
-                <Plus size={17} />
+                <Plus size={24} />
                 Create Workspace
               </button>
             </div>

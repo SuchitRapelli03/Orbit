@@ -8,9 +8,13 @@ import Workspace from "../models/Workspace.js";
 export function createSocketServer(httpServer) {
   const io = new Server(httpServer, {
     cors: {
-      origin:
-        process.env.CLIENT_URL ||
+      origin: [
+        process.env.CLIENT_URL,
         "http://localhost:5173",
+        "http://localhost:5174",
+        "http://127.0.0.1:5173",
+        "http://127.0.0.1:5174",
+      ].filter(Boolean),
 
       methods: [
         "GET",

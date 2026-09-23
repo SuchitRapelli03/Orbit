@@ -6,7 +6,7 @@ export function getSocket() {
   if (!socket) {
     socket = io(
       import.meta.env.VITE_SOCKET_URL ||
-        "http://localhost:5000",
+        "http://localhost:5001",
       {
         autoConnect: false,
 

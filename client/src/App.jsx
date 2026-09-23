@@ -5,10 +5,9 @@ import Register from "./pages/Register";
 import Dashboard from "./pages/Dashboard";
 import BoardPage from "./pages/BoardPage";
 import WorkspaceSettings from "./pages/WorkspaceSettings";
+import ScreenshotBoard from "./pages/ScreenshotBoard";
 
 export default function App() {
-  const token = localStorage.getItem("orbit_token");
-
   return (
     <Routes>
 
@@ -16,10 +15,7 @@ export default function App() {
       <Route
         path="/"
         element={
-          <Navigate
-            to={token ? "/dashboard" : "/login"}
-            replace
-          />
+          <ScreenshotBoard />
         }
       />
 

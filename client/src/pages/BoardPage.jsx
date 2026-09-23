@@ -1056,14 +1056,14 @@ export default function BoardPage() {
           SIDEBAR
       ===================================================== */}
 
-      <aside className="hidden w-72 shrink-0 flex-col border-r border-slate-800 bg-slate-900 lg:flex">
+      <aside className="hidden w-[260px] shrink-0 flex-col border-r border-slate-800 bg-slate-900 lg:flex">
 
         {/* BRAND */}
 
-        <div className="border-b border-slate-800 px-6 py-5">
+        <div className="border-b border-slate-800 px-5 py-4">
           <div className="flex items-center gap-3">
 
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-indigo-600 font-bold">
+            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-indigo-600 font-bold text-sm">
               O
             </div>
 
@@ -1111,20 +1111,20 @@ export default function BoardPage() {
 
         {/* NAVIGATION */}
 
-        <nav className="space-y-1 px-4 py-5">
+        <nav className="space-y-1 px-3 py-5">
 
           <button
             onClick={() =>
               navigate("/dashboard")
             }
-            className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm text-slate-400 transition hover:bg-slate-800 hover:text-white"
+            className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm text-slate-300 transition hover:bg-slate-800 hover:text-white"
           >
             <LayoutDashboard size={18} />
             Dashboard
           </button>
 
           <button
-            className="flex w-full items-center gap-3 rounded-lg bg-indigo-600/15 px-3 py-2.5 text-sm font-medium text-indigo-400"
+            className="flex w-full items-center gap-3 rounded-lg border border-indigo-500/40 bg-indigo-600/15 px-3 py-2.5 text-sm font-medium text-indigo-300 shadow-[inset_0_0_0_1px_rgba(99,102,241,0.12)]"
           >
             <FolderKanban size={18} />
             Boards
@@ -1148,13 +1148,13 @@ export default function BoardPage() {
 
         {/* BOARD INFO */}
 
-        <div className="px-4">
+        <div className="px-3">
 
           <p className="mb-2 px-2 text-[11px] font-semibold uppercase tracking-wider text-slate-500">
             Current Board
           </p>
 
-          <div className="rounded-xl border border-slate-800 bg-slate-950/50 p-3">
+          <div className="rounded-xl border border-slate-800 bg-slate-950/50 p-2.5">
 
             <div className="flex items-center gap-3">
 
@@ -1236,11 +1236,11 @@ export default function BoardPage() {
 
         <header className="shrink-0 border-b border-slate-800 bg-slate-950/95 backdrop-blur">
 
-          <div className="flex min-h-[76px] items-center justify-between gap-5 px-5 lg:px-7">
+          <div className="flex min-h-[74px] items-center justify-between gap-4 px-4 lg:px-6">
 
             <div className="min-w-0">
 
-              <div className="flex items-center gap-2 text-xs text-slate-500">
+              <div className="flex items-center gap-2 text-[11px] text-slate-500">
 
                 <span>
                   {workspaceName}
@@ -1261,7 +1261,7 @@ export default function BoardPage() {
 
               </div>
 
-              <h1 className="mt-1 truncate text-2xl font-bold tracking-tight">
+              <h1 className="mt-1 truncate text-[15px] font-semibold leading-6 tracking-tight text-white">
                 {board?.name ||
                   "Board"}
               </h1>
@@ -1272,7 +1272,7 @@ export default function BoardPage() {
 
               {/* ONLINE */}
 
-              <div className="hidden items-center gap-2 rounded-xl border border-slate-800 bg-slate-900 px-3 py-2 sm:flex">
+              <div className="hidden items-center gap-2 rounded-xl border border-slate-800 bg-slate-900 px-2.5 py-1.5 sm:flex">
 
                 <span className="relative flex h-2.5 w-2.5">
 
@@ -1294,15 +1294,15 @@ export default function BoardPage() {
 
               {/* SEARCH */}
 
-              <div className="flex items-center rounded-xl border border-slate-800 bg-slate-900 px-3">
+              <div className="flex items-center rounded-xl border border-slate-800 bg-slate-900 px-2.5">
 
                 <Search
-                  size={17}
+                  size={16}
                   className="text-slate-500"
                 />
 
                 <input
-                  className="w-32 bg-transparent px-2.5 py-2.5 text-sm text-white outline-none placeholder:text-slate-600 sm:w-48"
+                  className="w-32 bg-transparent px-2 py-2 text-sm text-white outline-none placeholder:text-slate-600 sm:w-48"
                   placeholder="Search cards..."
                   value={search}
                   onChange={(event) =>
@@ -1404,13 +1404,13 @@ export default function BoardPage() {
             KANBAN BOARD
         =================================================== */}
 
-        <section className="flex-1 overflow-x-auto overflow-y-hidden p-5 lg:p-7">
+        <section className="flex-1 overflow-x-auto overflow-y-hidden p-4 lg:p-5">
 
           <DragDropContext
             onDragEnd={handleDragEnd}
           >
 
-            <div className="flex min-h-full min-w-max items-start gap-4 pb-5">
+            <div className="flex min-h-full min-w-max items-start gap-3 pb-3">
 
               {search.trim() &&
               filteredLists.every(
@@ -1457,7 +1457,7 @@ export default function BoardPage() {
                           provided.innerRef
                         }
                         {...provided.droppableProps}
-                        className={`flex w-[310px] max-h-[calc(100vh-190px)] flex-col rounded-2xl border transition ${
+                        className={`flex w-[290px] max-h-[calc(100vh-190px)] flex-col rounded-2xl border transition ${
                           snapshot.isDraggingOver
                             ? "border-indigo-500/50 bg-indigo-950/20"
                             : "border-slate-800 bg-slate-900/80"
@@ -1466,7 +1466,7 @@ export default function BoardPage() {
 
                         {/* LIST HEADER */}
 
-                        <div className="shrink-0 border-b border-slate-800 px-4 py-3">
+                        <div className="shrink-0 border-b border-slate-800 px-3 py-2.5">
 
                           {editingList ===
                           list._id ? (
@@ -1541,11 +1541,11 @@ export default function BoardPage() {
                                   className="shrink-0 text-indigo-500"
                                 />
 
-                                <h2 className="truncate text-sm font-bold text-white">
+                                <h2 className="truncate text-[14px] font-semibold text-white">
                                   {list.title}
                                 </h2>
 
-                                <span className="rounded-md bg-slate-800 px-2 py-0.5 text-[11px] font-semibold text-slate-400">
+                                <span className="rounded-md bg-slate-800 px-1.5 py-0.5 text-[10px] font-semibold text-slate-400">
                                   {list.cards
                                     ?.length ||
                                     0}
@@ -1627,9 +1627,9 @@ export default function BoardPage() {
 
                         {/* CARDS */}
 
-                        <div className="min-h-[80px] flex-1 overflow-y-auto p-3">
+                        <div className="min-h-[80px] flex-1 overflow-y-auto p-2.5">
 
-                          <div className="space-y-3">
+                          <div className="space-y-2.5">
 
                             {(list.cards || []).map(
                               (
@@ -1663,7 +1663,7 @@ export default function BoardPage() {
                                           card
                                         )
                                       }
-                                      className={`group cursor-grab rounded-xl border bg-slate-800 p-4 transition active:cursor-grabbing ${
+                                      className={`group cursor-grab rounded-xl border bg-slate-800 p-3 transition active:cursor-grabbing ${
                                         snapshot.isDragging
                                           ? "rotate-1 border-indigo-500/50 bg-slate-700 shadow-2xl"
                                           : "border-slate-700/70 hover:border-slate-600 hover:bg-slate-800/90"
@@ -1674,7 +1674,7 @@ export default function BoardPage() {
 
                                       <div className="flex items-start justify-between gap-3">
 
-                                        <p className="min-w-0 flex-1 break-words text-sm font-semibold leading-5 text-slate-100">
+                                        <p className="min-w-0 flex-1 break-words text-[15px] font-semibold leading-5 text-slate-100">
                                           {card.title}
                                         </p>
 
@@ -1771,7 +1771,7 @@ export default function BoardPage() {
 
                         {/* ADD CARD */}
 
-                        <div className="shrink-0 border-t border-slate-800 p-3">
+                        <div className="shrink-0 border-t border-slate-800 p-2.5">
 
                           <button
                             type="button"

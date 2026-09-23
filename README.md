@@ -75,5 +75,5 @@ npm run dev
 
 MongoDB must be running. Redis is recommended; the server can start without Redis and will use the database directly.
 
-Default client URL: http://localhost:5173  
-Default API URL: http://localhost:5000/api
+Default client URL: http://localhost:5174
+Default API URL: http://localhost:5001/api

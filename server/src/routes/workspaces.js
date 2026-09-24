@@ -5,6 +5,7 @@ import Board from "../models/Board.js";
 import User from "../models/User.js";
 
 import { requireAuth } from "../middleware/auth.js";
+import { invalidateBoards } from "../utils/redis.js";
 
 const router = Router();
 
@@ -94,7 +95,7 @@ router.get(
               invitation.email
                 ?.trim()
                 .toLowerCase() ===
-                email &&
+              email &&
               invitation.status ===
                 "pending"
           );
@@ -317,6 +318,15 @@ router.patch(
             workspace._id,
         }).lean();
 
+      /*
+       * The board response cached by Redis contains
+       * the populated workspace name, so a workspace
+       * rename must invalidate all board caches.
+       */
+      await invalidateBoards(
+        boards.map((board) => board._id)
+      );
+
       const result =
         workspace.toObject();
 
@@ -431,7 +441,7 @@ router.post(
           (invitation) =>
             invitation.email
               .toLowerCase() ===
-              email &&
+            email &&
             invitation.status ===
               "pending"
         );
@@ -590,6 +600,17 @@ router.delete(
         });
       }
 
+      /*
+       * Capture affected board IDs before changing
+       * board membership so their Redis caches can
+       * be invalidated afterward.
+       */
+      const affectedBoards =
+        await Board.find({
+          workspace:
+            workspace._id,
+        }).select("_id");
+
       workspace.members =
         workspace.members.filter(
           (memberId) =>
@@ -612,6 +633,12 @@ router.delete(
               req.params.memberId,
           },
         }
+      );
+
+      await invalidateBoards(
+        affectedBoards.map(
+          (board) => board._id
+        )
       );
 
       res.json({
@@ -659,7 +686,7 @@ router.post(
             invitation.email
               .trim()
               .toLowerCase() ===
-              email &&
+            email &&
             invitation.status ===
               "pending"
         );
@@ -670,6 +697,17 @@ router.post(
             "No pending invitation for this email",
         });
       }
+
+      /*
+       * Capture affected board IDs before changing
+       * board membership so their Redis caches can
+       * be invalidated afterward.
+       */
+      const affectedBoards =
+        await Board.find({
+          workspace:
+            workspace._id,
+        }).select("_id");
 
       invite.status =
         "accepted";
@@ -700,6 +738,12 @@ router.post(
               req.user._id,
           },
         }
+      );
+
+      await invalidateBoards(
+        affectedBoards.map(
+          (board) => board._id
+        )
       );
 
       /*

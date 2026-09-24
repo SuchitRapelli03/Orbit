@@ -11,28 +11,57 @@ router.use(requireAuth);
 
 router.get("/:boardId", async (req, res, next) => {
   try {
+    const board = await Board.findById(req.params.boardId)
+      .populate("workspace", "name")
+      .lean();
+
+    if (!board) {
+      return res.status(404).json({ message: "Board not found" });
+    }
+
+    const workspace = await Workspace.findOne({
+      _id: board.workspace._id,
+      members: req.user._id
+    });
+
+    if (!workspace) {
+      return res.status(403).json({ message: "Access denied" });
+    }
+
     const redis = await getRedis();
     const key = `board:${req.params.boardId}`;
+
     if (redis) {
       const cached = await redis.get(key);
-      if (cached) return res.json({ board: JSON.parse(cached), cached: true });
+
+      if (cached) {
+        return res.json({
+          board: JSON.parse(cached),
+          cached: true
+        });
+      }
     }
 
-    const board = await Board.findById(req.params.boardId).populate("workspace", "name").lean();
-    if (!board) return res.status(404).json({ message: "Board not found" });
+    const lists = await List.find({ board: board._id })
+      .sort({ position: 1 })
+      .lean();
 
-    const workspace = await Workspace.findOne({ _id: board.workspace._id, members: req.user._id });
-    if (!workspace) return res.status(403).json({ message: "Not a workspace member" });
-
-    const lists = await List.find({ board: board._id }).sort({ position: 1 }).lean();
     for (const list of lists) {
-      list.cards = await Card.find({ list: list._id }).sort({ position: 1 }).lean();
+      list.cards = await Card.find({ list: list._id })
+        .sort({ position: 1 })
+        .lean();
     }
+
     board.lists = lists;
 
-    if (redis) await redis.set(key, JSON.stringify(board), { EX: 30 });
-    res.json({ board, cached: false });
-  } catch (e) { next(e); }
+    if (redis) {
+      await redis.set(key, JSON.stringify(board), { EX: 30 });
+    }
+
+    return res.json({ board, cached: false });
+  } catch (error) {
+    next(error);
+  }
 });
 
 export default router;

@@ -179,6 +179,9 @@ export default function BoardPage() {
   const [savingCard, setSavingCard] =
     useState(false);
 
+  const [savingPriority, setSavingPriority] =
+    useState(false);
+
   /* =========================================================
      LOAD BOARD
   ========================================================= */
@@ -663,6 +666,49 @@ export default function BoardPage() {
       setSavingCard(false);
     }
   }
+
+  async function handlePriorityChange(event) {
+  const priority = event.target.value;
+
+  if (!activeCard || savingPriority) {
+    return;
+  }
+
+  try {
+    setSavingPriority(true);
+    setError("");
+
+    const { data } = await api.patch(
+      `/cards/${activeCard._id}`,
+      {
+        priority,
+      }
+    );
+
+    upsertCard(data.card);
+
+    setActiveCard((previous) =>
+      previous
+        ? {
+            ...previous,
+            priority: data.card.priority,
+          }
+        : previous
+    );
+  } catch (error) {
+    console.error(
+      "Priority update error:",
+      error
+    );
+
+    setError(
+      error.response?.data?.message ||
+        "Unable to update priority."
+    );
+  } finally {
+    setSavingPriority(false);
+  }
+}
 
   /* =========================================================
      DELETE CARD
@@ -1722,8 +1768,14 @@ export default function BoardPage() {
                                       <div className="mt-4 flex items-center justify-between">
 
                                         <span className="rounded-md bg-indigo-500/10 px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-indigo-400">
-                                          {card.priority ||
-                                            "Medium"}
+                                          {(
+                                            card.priority ||
+                                            "medium"
+                                          ).charAt(0).toUpperCase() +
+                                            (
+                                              card.priority ||
+                                              "medium"
+                                            ).slice(1)}
                                         </span>
 
                                         <div className="flex items-center gap-1 text-slate-600">
@@ -2082,6 +2134,50 @@ export default function BoardPage() {
               >
                 <X size={19} />
               </button>
+
+            </div>
+
+                        {/* CARD DETAILS */}
+
+            <div className="border-b border-slate-800 px-6 py-5">
+
+              <div className="flex items-center justify-between gap-4">
+
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">
+                    Priority
+                  </p>
+
+                  <p className="mt-1 text-sm text-slate-400">
+                    Set the urgency of this card.
+                  </p>
+                </div>
+
+                <select
+                  value={
+                    activeCard.priority ||
+                    "medium"
+                  }
+                  onChange={
+                    handlePriorityChange
+                  }
+                  disabled={savingPriority}
+                  className="rounded-xl border border-slate-700 bg-slate-950 px-3 py-2.5 text-sm font-medium text-white outline-none transition focus:border-indigo-500 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  <option value="low">
+                    Low
+                  </option>
+
+                  <option value="medium">
+                    Medium
+                  </option>
+
+                  <option value="high">
+                    High
+                  </option>
+                </select>
+
+              </div>
 
             </div>
 

@@ -328,8 +328,8 @@ export default function Dashboard() {
                   </p>
 
                   <p className="text-xs text-slate-400">
-                    Workspace
-                  </p>
+  {activeWorkspace?.members?.length || 0} members
+</p>
                 </div>
               </div>
 

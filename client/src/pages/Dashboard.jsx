@@ -345,11 +345,20 @@ export default function Dashboard() {
                       onClick={() =>
                         selectWorkspace(item)
                       }
-                      className="w-full text-left px-4 py-3 hover:bg-slate-700 transition"
+                      className={`w-full text-left px-4 py-3 transition ${
+                        String(selectedWorkspace?._id) === String(item._id)
+                          ? "bg-indigo-500/15 text-indigo-300 border-l-2 border-indigo-400"
+                          : "text-slate-300 hover:bg-slate-700"
+                      }`}
                     >
-                      <p className="text-sm font-medium">
-                        {item.name}
-                      </p>
+                      <div className="flex items-center justify-between gap-3">
+                        <p className="text-sm font-medium truncate">
+                          {item.name}
+                        </p>
+                        {String(selectedWorkspace?._id) === String(item._id) && (
+                          <span className="text-xs text-indigo-400">Active</span>
+                        )}
+                      </div>
 
                       <p className="text-xs text-slate-400">
                         {item.members?.length || 0} members
@@ -403,8 +412,8 @@ export default function Dashboard() {
         <div className="px-4 mt-7">
           <div className="flex items-center justify-between mb-2">
             <p className="text-xs uppercase tracking-wider text-slate-500">
-              Boards
-            </p>
+  Boards ({boards.length})
+</p>
 
             {activeWorkspace && (
               <button

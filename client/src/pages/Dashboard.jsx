@@ -412,8 +412,8 @@ export default function Dashboard() {
         <div className="px-4 mt-7">
           <div className="flex items-center justify-between mb-2">
             <p className="text-xs uppercase tracking-wider text-slate-500">
-              Boards
-            </p>
+  Boards ({boards.length})
+</p>
 
             {activeWorkspace && (
               <button

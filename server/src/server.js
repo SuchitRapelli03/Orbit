@@ -4,10 +4,11 @@ import mongoose from "mongoose";
 import app from "./app.js";
 import { createSocketServer } from "./socket/index.js";
 
-const port = process.env.PORT || 5000;
+const port = Number(process.env.PORT || 5001);
 const server = http.createServer(app);
 
-createSocketServer(server);
+const io = createSocketServer(server);
+app.set("io", io);
 
 mongoose.connect(process.env.MONGO_URI || "mongodb://127.0.0.1:27017/orbit")
   .then(() => {

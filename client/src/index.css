@@ -4,13 +4,68 @@
 
 :root {
   font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-  color: #0f172a;
-  background: #f8fafc;
+  color: #e2e8f0;
+  background: #020b17;
 }
 
 * { box-sizing: border-box; }
-body { margin: 0; min-width: 320px; }
+html, body, #root { min-height: 100%; }
+body {
+  margin: 0;
+  min-width: 320px;
+  background: radial-gradient(circle at top, rgba(15, 23, 42, 0.9), rgba(2, 6, 23, 1) 35%);
+  color: #e2e8f0;
+}
 button, input, textarea { font: inherit; }
 
+.orbit-app { display: flex; background: #f5f4ef; background-image: radial-gradient(#dadbd2 0.7px, transparent 0.7px); background-size: 22px 22px; }
+.orbit-sidebar { width: 248px; min-height: 100vh; flex: 0 0 248px; display: flex; flex-direction: column; padding: 31px 21px; background: #14212b; color: #f8f6ee; }
+.orbit-brand { display: flex; align-items: center; gap: 10px; font-family: Georgia, serif; font-size: 25px; font-weight: 700; letter-spacing: -.8px; }
+.orbit-mark { display: grid; width: 30px; height: 30px; place-items: center; border: 2px solid #f6a48d; border-radius: 50%; color: #f6a48d; font-family: "DM Sans", sans-serif; font-size: 14px; }
+.orbit-nav-label, .orbit-eyebrow { margin: 0 0 9px; color: #8c9aa1; font-size: 10px; font-weight: 700; letter-spacing: 1.4px; text-transform: uppercase; }
+.orbit-nav-item { display: flex; align-items: center; gap: 11px; padding: 11px 12px; border-radius: 9px; color: #abb7ba; font-size: 13px; text-decoration: none; }
+.orbit-nav-item:hover, .orbit-nav-item.is-active { background: #253641; color: #fff; }
+.orbit-nav-item.is-active svg { color: #f6a48d; }
+.orbit-sidebar-footer { margin-top: auto; }
+.orbit-tip { display: flex; align-items: flex-start; gap: 9px; margin: 0 4px 28px; color: #93a2a5; font-size: 11px; line-height: 1.5; }
+.orbit-tip svg { flex: 0 0 auto; color: #e9bd76; }
+.orbit-logout { display: flex; width: 100%; align-items: center; gap: 10px; padding: 11px 12px; border: 0; border-top: 1px solid #2d3b44; background: transparent; color: #aab5b8; cursor: pointer; font-size: 12px; text-align: left; }
+.orbit-content { min-width: 0; flex: 1; }
+.orbit-topbar { display: flex; height: 78px; align-items: center; justify-content: space-between; padding: 0 5.5%; border-bottom: 1px solid #deded6; background: rgba(250, 249, 245, .82); }
+.orbit-search { display: flex; width: min(290px, 45vw); align-items: center; gap: 9px; color: #98a09f; }
+.orbit-search input { width: 100%; border: 0; outline: 0; background: transparent; color: #17212b; font-size: 13px; }
+.orbit-search input::placeholder { color: #a0a5a0; }
+.orbit-user-menu { display: flex; align-items: center; gap: 10px; color: #687475; font-size: 12px; }
+.orbit-icon-button { display: inline-grid; width: 36px; height: 36px; place-items: center; padding: 0; border: 1px solid #deded6; border-radius: 9px; background: #fbfaf6; color: #536166; cursor: pointer; }
+.orbit-icon-button:hover { background: #eeeee8; color: #17212b; }
+.orbit-avatar { display: grid; width: 29px; height: 29px; place-items: center; border-radius: 50%; background: #f4a18a; color: #fff; font-size: 12px; font-weight: 700; }
+.orbit-page { max-width: 1180px; margin: 0 auto; padding: 56px 5.5% 80px; }
+.orbit-hero { display: flex; align-items: flex-end; justify-content: space-between; gap: 20px; }
+.orbit-hero h1 { margin: 0; color: #16232d; font-family: Georgia, serif; font-size: clamp(30px, 4vw, 48px); font-weight: 400; letter-spacing: -1.8px; line-height: 1.03; }
+.orbit-muted { margin: 13px 0 0; color: #82908f; font-size: 14px; }
+.orbit-primary-button, .orbit-secondary-button { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 42px; padding: 0 17px; border-radius: 8px; cursor: pointer; font-size: 12px; font-weight: 700; }
+.orbit-primary-button { border: 1px solid #e79077; background: #f39d84; color: #17212b; box-shadow: 0 4px 0 #d8816b; }
+.orbit-primary-button:hover { transform: translateY(1px); box-shadow: 0 3px 0 #d8816b; }
+.orbit-secondary-button { border: 1px solid #d7d9d1; background: #fffefa; color: #506064; }
+.orbit-alert { margin-top: 27px; padding: 12px 15px; border: 1px solid #efb5a9; border-radius: 8px; background: #fff0ed; color: #ad5045; font-size: 12px; }
+.orbit-metrics { display: grid; grid-template-columns: repeat(3, 1fr); gap: 13px; margin-top: 44px; }
+.orbit-metric { display: flex; align-items: center; gap: 13px; padding: 18px; border: 1px solid #e0e0d8; border-radius: 10px; background: rgba(255, 254, 250, .78); }
+.orbit-metric-icon { display: grid; width: 36px; height: 36px; place-items: center; border-radius: 9px; }.orbit-metric-icon.coral { background: #fce1d7; color: #c7604d; }.orbit-metric-icon.mint { background: #dcebe1; color: #4c8064; }.orbit-metric-icon.gold { background: #f5e8c8; color: #9a7438; }
+.orbit-metric strong, .orbit-metric span { display: block; }.orbit-metric strong { color: #1c2b34; font-family: Georgia, serif; font-size: 25px; font-weight: 400; }.orbit-metric div span { margin-top: 2px; color: #87918f; font-size: 11px; }
+.orbit-section-heading { display: flex; align-items: flex-end; justify-content: space-between; margin: 60px 0 19px; }.orbit-section-heading h2 { margin: 0; font-family: Georgia, serif; font-size: 28px; font-weight: 400; letter-spacing: -.7px; }.orbit-count { color: #939c9a; font-size: 11px; }
+.orbit-workspace-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
+.orbit-workspace-card, .orbit-add-card { min-height: 210px; padding: 21px; border: 1px solid #dedfd7; border-radius: 11px; background: #fffefa; box-shadow: 0 5px 15px rgba(28, 38, 41, .035); }.orbit-workspace-card { border-top: 4px solid #f29d83; }.orbit-workspace-card.card-1 { border-top-color: #8ec5a4; }.orbit-workspace-card.card-2 { border-top-color: #e7c170; }
+.orbit-card-top { display: flex; align-items: center; justify-content: space-between; color: #a3aba7; }.orbit-workspace-symbol { display: grid; width: 36px; height: 36px; place-items: center; border-radius: 8px; background: #fbe4dc; color: #bd604b; font-size: 13px; font-weight: 700; }.card-1 .orbit-workspace-symbol { background: #e1eee5; color: #4c8064; }.card-2 .orbit-workspace-symbol { background: #f7ebd1; color: #997338; }
+.orbit-workspace-card h3 { margin: 18px 0 3px; color: #23323a; font-family: Georgia, serif; font-size: 20px; font-weight: 400; }.orbit-workspace-card > p { margin: 0; color: #919a98; font-size: 11px; }.orbit-board-list { margin-top: 18px; border-top: 1px solid #ecece5; }.orbit-board-list a { display: flex; align-items: center; justify-content: space-between; padding: 10px 0; color: #506065; font-size: 12px; text-decoration: none; }.orbit-board-list a:hover { color: #c7604d; }.orbit-board-list a span { display: flex; align-items: center; gap: 7px; }.orbit-no-boards { display: block; padding-top: 12px; color: #a6adaa; font-size: 11px; }
+.orbit-add-card { display: flex; flex-direction: column; align-items: center; justify-content: center; border-style: dashed; background: transparent; color: #7b8784; cursor: pointer; }.orbit-add-card:hover { border-color: #c4a69a; background: rgba(255, 254, 250, .5); }.orbit-add-card span { display: grid; width: 39px; height: 39px; place-items: center; margin-bottom: 11px; border: 1px solid #d1d5cd; border-radius: 50%; }.orbit-add-card strong { font-size: 12px; font-weight: 700; }.orbit-add-card small { margin-top: 5px; color: #a0a8a4; font-size: 10px; }
+.orbit-empty { display: flex; min-height: 230px; flex-direction: column; align-items: center; justify-content: center; gap: 9px; border: 1px dashed #d4d7ce; border-radius: 11px; color: #a0aaa6; text-align: center; }.orbit-empty h3 { margin: 3px 0 0; color: #4c5a5d; font-family: Georgia, serif; font-size: 19px; font-weight: 400; }.orbit-empty p { margin: 0 0 9px; font-size: 12px; }.orbit-spinner { width: 22px; height: 22px; border: 2px solid #dadfd7; border-top-color: #e99b82; border-radius: 50%; animation: orbit-spin .8s linear infinite; }
+.orbit-modal-backdrop { position: fixed; inset: 0; z-index: 20; display: grid; place-items: center; padding: 20px; background: rgba(20, 33, 43, .48); }.orbit-modal { width: min(100%, 440px); padding: 27px; border-radius: 12px; background: #fffefa; box-shadow: 0 18px 50px rgba(15, 30, 35, .2); }.orbit-modal-heading { display: flex; align-items: flex-start; justify-content: space-between; }.orbit-modal h2 { margin: 0; font-family: Georgia, serif; font-size: 26px; font-weight: 400; }.orbit-modal label { display: block; margin-top: 27px; color: #65706e; font-size: 12px; font-weight: 700; }.orbit-modal input { display: block; width: 100%; margin-top: 8px; padding: 12px; border: 1px solid #d9dcd4; border-radius: 7px; outline: none; background: #fafaf5; color: #17212b; font-size: 13px; }.orbit-modal input:focus { border-color: #e39a84; }.orbit-modal-actions { display: flex; justify-content: flex-end; gap: 9px; margin-top: 24px; }
+.mobile-only { display: none; }
+@keyframes orbit-spin { to { transform: rotate(360deg); } }
+
+@media (max-width: 880px) { .orbit-sidebar { position: fixed; z-index: 10; transform: translateX(-100%); transition: transform .2s ease; }.orbit-sidebar.is-open { transform: translateX(0); }.mobile-only { display: inline-grid; }.orbit-topbar { gap: 14px; justify-content: flex-start; }.orbit-user-menu { margin-left: auto; }.orbit-user-name { display: none; }.orbit-page { padding-top: 40px; }.orbit-workspace-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 580px) { .orbit-topbar { height: 68px; padding: 0 20px; }.orbit-search { width: auto; flex: 1; }.orbit-page { padding: 35px 20px 60px; }.orbit-hero { align-items: flex-start; flex-direction: column; }.orbit-hero .orbit-primary-button { width: 100%; }.orbit-metrics { grid-template-columns: 1fr; margin-top: 30px; }.orbit-section-heading { margin-top: 42px; }.orbit-workspace-grid { grid-template-columns: 1fr; }.orbit-workspace-card, .orbit-add-card { min-height: 190px; } }
+
 ::-webkit-scrollbar { width: 8px; height: 8px; }
-::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 999px; }
+::-webkit-scrollbar-track { background: rgba(15, 23, 42, 0.3); }
+::-webkit-scrollbar-thumb { background: rgba(148, 163, 184, 0.35); border-radius: 999px; }

@@ -5,22 +5,17 @@ import Register from "./pages/Register";
 import Dashboard from "./pages/Dashboard";
 import BoardPage from "./pages/BoardPage";
 import WorkspaceSettings from "./pages/WorkspaceSettings";
+import Landing from "./pages/Landing";
 
 export default function App() {
   const token = localStorage.getItem("orbit_token");
 
   return (
     <Routes>
-
-      {/* HOME */}
+      {/* ORBIT INTRO */}
       <Route
         path="/"
-        element={
-          <Navigate
-            to={token ? "/dashboard" : "/login"}
-            replace
-          />
-        }
+        element={<Landing />}
       />
 
       {/* AUTH */}
@@ -62,7 +57,6 @@ export default function App() {
           />
         }
       />
-
     </Routes>
   );
 }

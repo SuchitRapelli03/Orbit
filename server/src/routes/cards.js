@@ -86,6 +86,11 @@ router.post("/", async (req, res, next) => {
       position: (last?.position ?? -1) + 1
     });
 
+    await card.populate(
+      "assignee",
+      "name email"
+    );
+
     await invalidateBoard(board._id);
 
     emitToBoard(
@@ -223,6 +228,21 @@ router.patch("/:id", async (req, res, next) => {
         });
       }
 
+      if (req.body.assignee !== null) {
+        const assigneeIsMember = board.members.some(
+          (memberId) =>
+            String(memberId) ===
+            String(req.body.assignee)
+        );
+
+        if (!assigneeIsMember) {
+          return res.status(400).json({
+            message:
+              "Assignee must be a member of this board"
+          });
+        }
+      }
+
       updates.assignee = req.body.assignee;
     }
 
@@ -263,6 +283,15 @@ router.patch("/:id", async (req, res, next) => {
     Object.assign(card, updates);
 
     await card.save();
+
+    /*
+     * Always return a populated assignee so the
+     * frontend store receives a consistent card shape.
+     */
+    await card.populate(
+      "assignee",
+      "name email"
+    );
 
     await invalidateBoard(board._id);
 
@@ -382,6 +411,15 @@ router.patch("/:id/move", async (req, res, next) => {
     card.position = position ?? 0;
 
     await card.save();
+
+    /*
+     * Keep the realtime card shape consistent with
+     * normal card updates.
+     */
+    await card.populate(
+      "assignee",
+      "name email"
+    );
 
     await invalidateBoard(currentBoard._id);
 

@@ -86,6 +86,11 @@ router.post("/", async (req, res, next) => {
       position: (last?.position ?? -1) + 1
     });
 
+    await card.populate(
+      "assignee",
+      "name email"
+    );
+
     await invalidateBoard(board._id);
 
     emitToBoard(
@@ -223,6 +228,21 @@ router.patch("/:id", async (req, res, next) => {
         });
       }
 
+      if (req.body.assignee !== null) {
+        const assigneeIsMember = board.members.some(
+          (memberId) =>
+            String(memberId) ===
+            String(req.body.assignee)
+        );
+
+        if (!assigneeIsMember) {
+          return res.status(400).json({
+            message:
+              "Assignee must be a member of this board"
+          });
+        }
+      }
+
       updates.assignee = req.body.assignee;
     }
 
@@ -263,6 +283,15 @@ router.patch("/:id", async (req, res, next) => {
     Object.assign(card, updates);
 
     await card.save();
+
+    /*
+     * Always return a populated assignee so the
+     * frontend store receives a consistent card shape.
+     */
+    await card.populate(
+      "assignee",
+      "name email"
+    );
 
     await invalidateBoard(board._id);
 
@@ -382,6 +411,15 @@ router.patch("/:id/move", async (req, res, next) => {
     card.position = position ?? 0;
 
     await card.save();
+
+    /*
+     * Keep the realtime card shape consistent with
+     * normal card updates.
+     */
+    await card.populate(
+      "assignee",
+      "name email"
+    );
 
     await invalidateBoard(currentBoard._id);
 
@@ -550,5 +588,159 @@ router.get("/:id/comments", async (req, res, next) => {
     next(e);
   }
 });
+
+/*
+ * Edit comment
+ */
+router.patch("/:id/comments/:commentId", async (req, res, next) => {
+  try {
+    const body = cleanString(req.body.body);
+
+    if (!body) {
+      return res.status(400).json({
+        message: "Comment cannot be empty"
+      });
+    }
+
+    if (body.length > 2000) {
+      return res.status(400).json({
+        message: "Comment must be 2000 characters or fewer"
+      });
+    }
+
+    const card = await Card.findById(req.params.id);
+
+    if (!card) {
+      return res.status(404).json({
+        message: "Card not found"
+      });
+    }
+
+    const board = await boardForList(card.list);
+
+    if (!board) {
+      return res.status(404).json({
+        message: "Board not found"
+      });
+    }
+
+    if (!board.members.some((id) => id.equals(req.user._id))) {
+      return res.status(403).json({
+        message: "Board access denied"
+      });
+    }
+
+    const comment = await Comment.findOne({
+      _id: req.params.commentId,
+      card: card._id
+    });
+
+    if (!comment) {
+      return res.status(404).json({
+        message: "Comment not found"
+      });
+    }
+
+    /*
+     * Only the original author can edit the comment.
+     */
+    if (!comment.author.equals(req.user._id)) {
+      return res.status(403).json({
+        message: "You can only edit your own comments"
+      });
+    }
+
+    comment.body = body;
+
+    await comment.save();
+
+    await comment.populate(
+      "author",
+      "name"
+    );
+
+    emitToBoard(
+      req,
+      board._id,
+      "comment:updated",
+      comment
+    );
+
+    res.json({ comment });
+  } catch (e) {
+    next(e);
+  }
+});
+
+/*
+ * Delete comment
+ */
+router.delete(
+  "/:id/comments/:commentId",
+  async (req, res, next) => {
+    try {
+      const card = await Card.findById(req.params.id);
+
+      if (!card) {
+        return res.status(404).json({
+          message: "Card not found"
+        });
+      }
+
+      const board = await boardForList(card.list);
+
+      if (!board) {
+        return res.status(404).json({
+          message: "Board not found"
+        });
+      }
+
+      if (!board.members.some((id) => id.equals(req.user._id))) {
+        return res.status(403).json({
+          message: "Board access denied"
+        });
+      }
+
+      const comment = await Comment.findOne({
+        _id: req.params.commentId,
+        card: card._id
+      });
+
+      if (!comment) {
+        return res.status(404).json({
+          message: "Comment not found"
+        });
+      }
+
+      /*
+       * Only the original author can delete the comment.
+       */
+      if (!comment.author.equals(req.user._id)) {
+        return res.status(403).json({
+          message: "You can only delete your own comments"
+        });
+      }
+
+      await comment.deleteOne();
+
+      emitToBoard(
+        req,
+        board._id,
+        "comment:deleted",
+        {
+          commentId: comment._id,
+          cardId: card._id
+        }
+      );
+
+      res.json({
+        message: "Comment deleted",
+        commentId: comment._id
+      });
+    } catch (e) {
+      next(e);
+    }
+  }
+);
 
 export default router;

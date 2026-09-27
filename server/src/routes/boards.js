@@ -1,22 +1,34 @@
 import { Router } from "express";
+
 import Board from "../models/Board.js";
 import List from "../models/List.js";
 import Card from "../models/Card.js";
 import Workspace from "../models/Workspace.js";
+
 import { requireAuth } from "../middleware/auth.js";
 import { getRedis } from "../utils/redis.js";
 
 const router = Router();
+
 router.use(requireAuth);
 
 router.get("/:boardId", async (req, res, next) => {
   try {
     const board = await Board.findById(req.params.boardId)
-      .populate("workspace", "name")
+      .populate({
+        path: "workspace",
+        select: "name members",
+        populate: {
+          path: "members",
+          select: "name email"
+        }
+      })
       .lean();
 
     if (!board) {
-      return res.status(404).json({ message: "Board not found" });
+      return res.status(404).json({
+        message: "Board not found"
+      });
     }
 
     const workspace = await Workspace.findOne({
@@ -25,7 +37,9 @@ router.get("/:boardId", async (req, res, next) => {
     });
 
     if (!workspace) {
-      return res.status(403).json({ message: "Access denied" });
+      return res.status(403).json({
+        message: "Access denied"
+      });
     }
 
     const redis = await getRedis();
@@ -42,12 +56,20 @@ router.get("/:boardId", async (req, res, next) => {
       }
     }
 
-    const lists = await List.find({ board: board._id })
+    const lists = await List.find({
+      board: board._id
+    })
       .sort({ position: 1 })
       .lean();
 
     for (const list of lists) {
-      list.cards = await Card.find({ list: list._id })
+      list.cards = await Card.find({
+        list: list._id
+      })
+        .populate(
+          "assignee",
+          "name email"
+        )
         .sort({ position: 1 })
         .lean();
     }
@@ -55,10 +77,17 @@ router.get("/:boardId", async (req, res, next) => {
     board.lists = lists;
 
     if (redis) {
-      await redis.set(key, JSON.stringify(board), { EX: 30 });
+      await redis.set(
+        key,
+        JSON.stringify(board),
+        { EX: 30 }
+      );
     }
 
-    return res.json({ board, cached: false });
+    return res.json({
+      board,
+      cached: false
+    });
   } catch (error) {
     next(error);
   }

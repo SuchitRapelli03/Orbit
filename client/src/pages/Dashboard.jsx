@@ -692,7 +692,7 @@ export default function Dashboard() {
                     closeSidebar();
                     navigate(`/boards/${board._id}`);
                   }}
-                  className="group flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-[#A8BDB7] transition hover:bg-white/5 hover:text-[#FFF8EA]"
+                  className="group flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-[#A8BDB7] transition hover:bg-white/10 hover:text-[#FFF8EA] hover:translate-x-0.5"
                 >
                   <span
                     className={`h-2 w-2 shrink-0 rounded-full ${accent.dot}`}

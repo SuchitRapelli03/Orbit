@@ -1287,6 +1287,11 @@ async function handleDeleteComment(comment) {
   const onlineCount =
     Object.keys(onlineUsers).length;
 
+  const totalCardCount = lists.reduce(
+    (count, list) => count + (list.cards || []).length,
+    0
+  );
+
   return (
     <>
       <div
@@ -1723,9 +1728,10 @@ async function handleDeleteComment(comment) {
 
                 <span className="rounded-full bg-[#E8E3D9] px-2.5 py-1 text-[10px] font-bold text-[#66756E]">
                   {lists.length}{" "}
-                  {lists.length === 1
-                    ? "list"
-                    : "lists"}
+                  {lists.length === 1 ? "list" : "lists"}
+                  {" • "}
+                  {totalCardCount}{" "}
+                  {totalCardCount === 1 ? "card" : "cards"}
                 </span>
 
               </div>

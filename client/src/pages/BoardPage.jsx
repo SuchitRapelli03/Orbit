@@ -2145,15 +2145,19 @@ async function handleDeleteComment(comment) {
                                 .length ===
                                 0 && (
 
-                                <div className="flex min-h-[100px] items-center justify-center rounded-[17px] border border-dashed border-[#D4CFC3] bg-[#F5F2EA]/60 text-center">
+                                <div className="flex min-h-[100px] items-center justify-center rounded-[17px] border border-dashed border-[#D4CFC3] bg-[#F5F2EA]/60 px-4 text-center">
 
                                   <div>
                                     <div className="mx-auto mb-2 flex h-7 w-7 items-center justify-center rounded-lg bg-[#E7E3D8] text-[#8B9892]">
                                       <Plus size={13} />
                                     </div>
 
-                                    <p className="text-[10px] font-medium uppercase tracking-[0.12em] text-[#9BA49F]">
+                                    <p className="text-xs font-semibold text-[#718079]">
                                       No cards yet
+                                    </p>
+
+                                    <p className="mt-1 text-[10px] text-[#9AA49F]">
+                                      Add a card to get started.
                                     </p>
                                   </div>
 

@@ -187,9 +187,38 @@ export default function BoardPage() {
     }, 1500);
   }
 
-  useEffect(() => {
-    activeCardRef.current = activeCard;
-  }, [activeCard]);
+          useEffect(() => {
+  function handleDashboardShortcut(event) {
+    const activeElement = document.activeElement;
+
+    const isTyping =
+      activeElement?.tagName === "INPUT" ||
+      activeElement?.tagName === "TEXTAREA" ||
+      activeElement?.tagName === "SELECT" ||
+      activeElement?.isContentEditable;
+
+    if (isTyping) {
+      return;
+    }
+
+    if (event.key.toLowerCase() === "h") {
+      event.preventDefault();
+      navigate("/dashboard");
+    }
+  }
+
+  window.addEventListener(
+    "keydown",
+    handleDashboardShortcut
+  );
+
+  return () => {
+    window.removeEventListener(
+      "keydown",
+      handleDashboardShortcut
+    );
+  };
+}, [navigate]);
 
   /*
    * =========================================================

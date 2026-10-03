@@ -66,6 +66,7 @@ export default function BoardPage() {
   const [creatingCard, setCreatingCard] = useState(false);
 
   const [search, setSearch] = useState("");
+  const [lastUpdated, setLastUpdated] = useState(new Date());
 
   const [activeCard, setActiveCard] = useState(null);
   const activeCardRef = useRef(null);
@@ -252,6 +253,7 @@ export default function BoardPage() {
 
         setBoard(data.board);
         setLists(data.board.lists || []);
+        setLastUpdated(new Date());
       } catch (error) {
         console.error("Board loading error:", error);
 
@@ -1763,6 +1765,14 @@ async function handleDeleteComment(comment) {
 
                 <span className="hidden text-[11px] font-medium text-[#9AA49F] sm:inline">
                   Drag cards to move them
+                </span>
+
+                <span className="hidden text-[11px] font-medium text-[#9AA49F] lg:inline">
+                  Updated{" "}
+                  {lastUpdated.toLocaleTimeString([], {
+                    hour: "2-digit",
+                    minute: "2-digit",
+                  })}
                 </span>
 
                 <span className="rounded-full bg-[#E8E3D9] px-2.5 py-1 text-[10px] font-bold text-[#66756E]">

@@ -220,6 +220,16 @@ export default function BoardPage() {
   };
 }, [navigate]);
 
+  useEffect(() => {
+    if (board?.name) {
+      document.title = `Orbit • ${board.name}`;
+    }
+
+    return () => {
+      document.title = "Orbit";
+    };
+  }, [board?.name]);
+
   /*
    * =========================================================
    * LOAD BOARD

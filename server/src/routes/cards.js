@@ -8,6 +8,7 @@ import Comment from "../models/Comment.js";
 
 import { requireAuth } from "../middleware/auth.js";
 import { invalidateBoard } from "../utils/redis.js";
+import { createNotification } from "../utils/notifications.js";
 
 const router = Router();
 
@@ -132,6 +133,14 @@ router.patch("/:id", async (req, res, next) => {
         message: "Board access denied"
       });
     }
+
+    /*
+     * Remember the existing assignee before applying
+     * the requested updates.
+     */
+    const previousAssigneeId = card.assignee
+      ? String(card.assignee)
+      : null;
 
     /*
      * Only allow fields that are actually editable
@@ -292,6 +301,40 @@ router.patch("/:id", async (req, res, next) => {
       "assignee",
       "name email"
     );
+
+    /*
+     * Notify the new assignee only when the assignee
+     * actually changed to another user.
+     */
+    if (
+      Object.prototype.hasOwnProperty.call(
+        req.body,
+        "assignee"
+      )
+    ) {
+      const newAssigneeId = card.assignee
+        ? String(card.assignee._id)
+        : null;
+
+      const assigneeChanged =
+        newAssigneeId !== previousAssigneeId;
+
+      const assigningSomeoneElse =
+        newAssigneeId &&
+        newAssigneeId !== String(req.user._id);
+
+      if (
+        assigneeChanged &&
+        assigningSomeoneElse
+      ) {
+        await createNotification(req, {
+          recipient: card.assignee._id,
+          type: "card_assigned",
+          message: `You were assigned to "${card.title}"`,
+          board: board._id
+        });
+      }
+    }
 
     await invalidateBoard(board._id);
 

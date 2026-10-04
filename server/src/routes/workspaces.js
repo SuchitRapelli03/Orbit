@@ -6,6 +6,7 @@ import User from "../models/User.js";
 
 import { requireAuth } from "../middleware/auth.js";
 import { invalidateBoards } from "../utils/redis.js";
+import { createNotification } from "../utils/notifications.js";
 
 const router = Router();
 
@@ -466,35 +467,12 @@ router.post(
             .length - 1
         ];
 
-      /*
-        Optional realtime invitation
-        event for the invited user.
-      */
-
-      const io =
-        req.app.get("io");
-
-      if (io && invitedUser) {
-        io
-          .to(
-            `user:${invitedUser._id}`
-          )
-          .emit(
-            "invitation:new",
-            {
-              invitationId:
-                invitation._id,
-
-              workspaceId:
-                workspace._id,
-
-              workspaceName:
-                workspace.name,
-
-              invitedAt:
-                invitation.invitedAt,
-            }
-          );
+      if (invitedUser) {
+        await createNotification(req, {
+          recipient: invitedUser._id,
+          type: "workspace_invitation",
+          message: `You were invited to join ${workspace.name}`,
+        });
       }
 
       res.status(201).json({

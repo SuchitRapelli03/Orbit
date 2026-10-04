@@ -94,6 +94,8 @@ export function createSocketServer(httpServer) {
         `Socket connected: ${socket.user.name} (${socket.id})`
       );
 
+      socket.join(`user:${socket.user._id}`);
+
       // ========================================================
       // JOIN BOARD
       // ========================================================

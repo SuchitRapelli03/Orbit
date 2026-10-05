@@ -1,9 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import {
-  DragDropContext,
-  Droppable,
-  Draggable,
-} from "@hello-pangea/dnd";
+import { DragDropContext, Droppable, Draggable } from "@hello-pangea/dnd";
 
 import {
   Plus,
@@ -25,10 +21,7 @@ import {
   ArrowLeft,
 } from "lucide-react";
 
-import {
-  useNavigate,
-  useParams,
-} from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 
 import api from "../lib/api";
 import { connectSocket } from "../lib/socket";
@@ -45,20 +38,20 @@ export default function BoardPage() {
   const setBoard = useOrbitStore((state) => state.setBoard);
   const setLists = useOrbitStore((state) => state.setLists);
 
-  const upsertCard = useOrbitStore(
-    (state) => state.upsertCard
-  );
+  const upsertCard = useOrbitStore((state) => state.upsertCard);
 
-  const removeCard = useOrbitStore(
-    (state) => state.removeCard
-  );
+  const removeCard = useOrbitStore((state) => state.removeCard);
 
-  const addList = useOrbitStore(
-    (state) => state.addList
-  );
+  const addList = useOrbitStore((state) => state.addList);
 
-  const addNotification = useOrbitStore(
-    (state) => state.addNotification
+  const addNotification = useOrbitStore((state) => state.addNotification);
+
+  const notifications = useOrbitStore((state) => state.notifications);
+
+  const setNotifications = useOrbitStore((state) => state.setNotifications);
+
+  const markNotificationRead = useOrbitStore(
+    (state) => state.markNotificationRead,
   );
 
   const [listTitle, setListTitle] = useState("");
@@ -87,6 +80,7 @@ export default function BoardPage() {
   const [error, setError] = useState("");
 
   const [openMenu, setOpenMenu] = useState(null);
+  const [notificationsOpen, setNotificationsOpen] = useState(false);
 
   const [editingList, setEditingList] = useState(null);
   const [editingTitle, setEditingTitle] = useState("");
@@ -94,10 +88,10 @@ export default function BoardPage() {
 
   const [editingCard, setEditingCard] = useState(null);
   const [editingCardTitle, setEditingCardTitle] = useState("");
-  const [editingCardDescription, setEditingCardDescription] =
-    useState("");
+  const [editingCardDescription, setEditingCardDescription] = useState("");
   const [savingCard, setSavingCard] = useState(false);
   const [savingPriority, setSavingPriority] = useState(false);
+  const [savingAssignee, setSavingAssignee] = useState(false);
 
   /*
    * =========================================================
@@ -188,38 +182,32 @@ export default function BoardPage() {
     }, 1500);
   }
 
-          useEffect(() => {
-  function handleDashboardShortcut(event) {
-    const activeElement = document.activeElement;
+  useEffect(() => {
+    function handleDashboardShortcut(event) {
+      const activeElement = document.activeElement;
 
-    const isTyping =
-      activeElement?.tagName === "INPUT" ||
-      activeElement?.tagName === "TEXTAREA" ||
-      activeElement?.tagName === "SELECT" ||
-      activeElement?.isContentEditable;
+      const isTyping =
+        activeElement?.tagName === "INPUT" ||
+        activeElement?.tagName === "TEXTAREA" ||
+        activeElement?.tagName === "SELECT" ||
+        activeElement?.isContentEditable;
 
-    if (isTyping) {
-      return;
+      if (isTyping) {
+        return;
+      }
+
+      if (event.key.toLowerCase() === "h") {
+        event.preventDefault();
+        navigate("/dashboard");
+      }
     }
 
-    if (event.key.toLowerCase() === "h") {
-      event.preventDefault();
-      navigate("/dashboard");
-    }
-  }
+    window.addEventListener("keydown", handleDashboardShortcut);
 
-  window.addEventListener(
-    "keydown",
-    handleDashboardShortcut
-  );
-
-  return () => {
-    window.removeEventListener(
-      "keydown",
-      handleDashboardShortcut
-    );
-  };
-}, [navigate]);
+    return () => {
+      window.removeEventListener("keydown", handleDashboardShortcut);
+    };
+  }, [navigate]);
 
   useEffect(() => {
     if (board?.name) {
@@ -245,9 +233,7 @@ export default function BoardPage() {
         setLoading(true);
         setError("");
 
-        const { data } = await api.get(
-          `/boards/${boardId}`
-        );
+        const { data } = await api.get(`/boards/${boardId}`);
 
         if (!mounted) return;
 
@@ -258,10 +244,7 @@ export default function BoardPage() {
         console.error("Board loading error:", error);
 
         if (mounted) {
-          setError(
-            error.response?.data?.message ||
-              "Unable to load board."
-          );
+          setError(error.response?.data?.message || "Unable to load board.");
         }
       } finally {
         if (mounted) {
@@ -277,6 +260,30 @@ export default function BoardPage() {
     };
   }, [boardId, setBoard, setLists]);
 
+  useEffect(() => {
+    let mounted = true;
+
+    async function loadNotifications() {
+      try {
+        const { data } = await api.get("/notifications");
+
+        if (!mounted) {
+          return;
+        }
+
+        setNotifications(data.notifications || []);
+      } catch (error) {
+        console.error("Notification loading error:", error);
+      }
+    }
+
+    loadNotifications();
+
+    return () => {
+      mounted = false;
+    };
+  }, [setNotifications]);
+
   /*
    * =========================================================
    * SOCKET.IO
@@ -287,9 +294,7 @@ export default function BoardPage() {
     const socket = connectSocket();
 
     function handleConnect() {
-      const currentUserId = String(
-        user?._id || user?.id || ""
-      );
+      const currentUserId = String(user?._id || user?.id || "");
 
       if (currentUserId) {
         setOnlineUsers((previous) => ({
@@ -372,10 +377,7 @@ export default function BoardPage() {
     function handleTypingStart(payload) {
       if (!payload?.userId) return;
 
-      if (
-        String(payload.userId) ===
-        String(user?._id || user?.id)
-      ) {
+      if (String(payload.userId) === String(user?._id || user?.id)) {
         return;
       }
 
@@ -405,19 +407,13 @@ export default function BoardPage() {
 
       const currentCard = activeCardRef.current;
 
-      if (
-        !currentCard ||
-        String(comment.card) !==
-          String(currentCard._id)
-      ) {
+      if (!currentCard || String(comment.card) !== String(currentCard._id)) {
         return;
       }
 
       setComments((previous) => {
         const alreadyExists = previous.some(
-          (item) =>
-            String(item._id) ===
-            String(comment._id)
+          (item) => String(item._id) === String(comment._id),
         );
 
         if (alreadyExists) {
@@ -440,15 +436,9 @@ export default function BoardPage() {
     socket.on("typing:start", handleTypingStart);
     socket.on("typing:stop", handleTypingStop);
     socket.on("comment:created", handleCommentCreated);
-    socket.on(
-      "comment:updated",
-      handleCommentUpdated
-    );
+    socket.on("comment:updated", handleCommentUpdated);
 
-    socket.on(
-      "comment:deleted",
-      handleCommentDeleted
-    );
+    socket.on("comment:deleted", handleCommentDeleted);
 
     if (socket.connected) {
       socket.emit("board:join", boardId);
@@ -469,69 +459,49 @@ export default function BoardPage() {
       socket.off("typing:start", handleTypingStart);
       socket.off("typing:stop", handleTypingStop);
       socket.off("comment:created", handleCommentCreated);
-      socket.off(
-        "comment:updated",
-        handleCommentUpdated
-      );
+      socket.off("comment:updated", handleCommentUpdated);
 
-      socket.off(
-        "comment:deleted",
-        handleCommentDeleted
-      );
+      socket.off("comment:deleted", handleCommentDeleted);
 
       stopTyping();
       setTypingUsers({});
       setOnlineUsers({});
     };
-  }, [
-    boardId,
-    upsertCard,
-    removeCard,
-    addNotification,
-    user,
-  ]);
+  }, [boardId, upsertCard, removeCard, addNotification, user]);
 
   function handleCommentUpdated(comment) {
-  if (!comment?._id || !comment?.card) return;
+    if (!comment?._id || !comment?.card) return;
 
-  const currentCard = activeCardRef.current;
+    const currentCard = activeCardRef.current;
 
-  if (
-    !currentCard ||
-    String(comment.card) !== String(currentCard._id)
-  ) {
-    return;
+    if (!currentCard || String(comment.card) !== String(currentCard._id)) {
+      return;
+    }
+
+    setComments((previous) =>
+      previous.map((item) =>
+        String(item._id) === String(comment._id) ? comment : item,
+      ),
+    );
   }
 
-  setComments((previous) =>
-    previous.map((item) =>
-      String(item._id) === String(comment._id)
-        ? comment
-        : item
-    )
-  );
-}
+  function handleCommentDeleted(payload) {
+    if (!payload?.commentId) return;
 
-function handleCommentDeleted(payload) {
-  if (!payload?.commentId) return;
+    const currentCard = activeCardRef.current;
 
-  const currentCard = activeCardRef.current;
+    if (
+      payload.cardId &&
+      currentCard &&
+      String(payload.cardId) !== String(currentCard._id)
+    ) {
+      return;
+    }
 
-  if (
-    payload.cardId &&
-    currentCard &&
-    String(payload.cardId) !== String(currentCard._id)
-  ) {
-    return;
+    setComments((previous) =>
+      previous.filter((item) => String(item._id) !== String(payload.commentId)),
+    );
   }
-
-  setComments((previous) =>
-    previous.filter(
-      (item) =>
-        String(item._id) !== String(payload.commentId)
-    )
-  );
-}
 
   /*
    * =========================================================
@@ -550,23 +520,17 @@ function handleCommentDeleted(payload) {
       setCreatingList(true);
       setError("");
 
-      const { data } = await api.post(
-        "/lists",
-        {
-          boardId,
-          title,
-        }
-      );
+      const { data } = await api.post("/lists", {
+        boardId,
+        title,
+      });
 
       addList(data.list);
       setListTitle("");
     } catch (error) {
       console.error("Create list error:", error);
 
-      setError(
-        error.response?.data?.message ||
-          "Unable to create list."
-      );
+      setError(error.response?.data?.message || "Unable to create list.");
     } finally {
       setCreatingList(false);
     }
@@ -581,9 +545,7 @@ function handleCommentDeleted(payload) {
   async function handleCreateCard(listId) {
     if (creatingCard) return;
 
-    const title = window.prompt(
-      "Enter card title"
-    );
+    const title = window.prompt("Enter card title");
 
     if (!title?.trim()) return;
 
@@ -591,22 +553,16 @@ function handleCommentDeleted(payload) {
       setCreatingCard(true);
       setError("");
 
-      const { data } = await api.post(
-        "/cards",
-        {
-          listId,
-          title: title.trim(),
-        }
-      );
+      const { data } = await api.post("/cards", {
+        listId,
+        title: title.trim(),
+      });
 
       upsertCard(data.card);
     } catch (error) {
       console.error("Create card error:", error);
 
-      setError(
-        error.response?.data?.message ||
-          "Unable to create card."
-      );
+      setError(error.response?.data?.message || "Unable to create card.");
     } finally {
       setCreatingCard(false);
     }
@@ -621,20 +577,14 @@ function handleCommentDeleted(payload) {
   function startEditingCard(card) {
     setEditingCard(card);
     setEditingCardTitle(card.title || "");
-    setEditingCardDescription(
-      card.description || ""
-    );
+    setEditingCardDescription(card.description || "");
     setActiveCard(null);
   }
 
   async function saveCardChanges() {
     const title = editingCardTitle.trim();
 
-    if (
-      !editingCard ||
-      !title ||
-      savingCard
-    ) {
+    if (!editingCard || !title || savingCard) {
       return;
     }
 
@@ -642,14 +592,10 @@ function handleCommentDeleted(payload) {
       setSavingCard(true);
       setError("");
 
-      const { data } = await api.patch(
-        `/cards/${editingCard._id}`,
-        {
-          title,
-          description:
-            editingCardDescription.trim(),
-        }
-      );
+      const { data } = await api.patch(`/cards/${editingCard._id}`, {
+        title,
+        description: editingCardDescription.trim(),
+      });
 
       upsertCard(data.card);
 
@@ -657,15 +603,9 @@ function handleCommentDeleted(payload) {
       setEditingCardTitle("");
       setEditingCardDescription("");
     } catch (error) {
-      console.error(
-        "Edit card error:",
-        error
-      );
+      console.error("Edit card error:", error);
 
-      setError(
-        error.response?.data?.message ||
-          "Unable to update card."
-      );
+      setError(error.response?.data?.message || "Unable to update card.");
     } finally {
       setSavingCard(false);
     }
@@ -688,12 +628,9 @@ function handleCommentDeleted(payload) {
       setSavingPriority(true);
       setError("");
 
-      const { data } = await api.patch(
-        `/cards/${activeCard._id}`,
-        {
-          priority,
-        }
-      );
+      const { data } = await api.patch(`/cards/${activeCard._id}`, {
+        priority,
+      });
 
       upsertCard(data.card);
 
@@ -703,21 +640,68 @@ function handleCommentDeleted(payload) {
               ...previous,
               priority: data.card.priority,
             }
-          : previous
+          : previous,
       );
     } catch (error) {
-      console.error(
-        "Priority update error:",
-        error
-      );
+      console.error("Priority update error:", error);
 
-      setError(
-        error.response?.data?.message ||
-          "Unable to update priority."
-      );
+      setError(error.response?.data?.message || "Unable to update priority.");
     } finally {
       setSavingPriority(false);
     }
+  }
+
+  /*
+   * =========================================================
+   * ASSIGNEE
+   * =========================================================
+   */
+
+  async function handleAssigneeChange(event) {
+    const assignee = event.target.value || null;
+
+    if (!activeCard || savingAssignee) {
+      return;
+    }
+
+    try {
+      setSavingAssignee(true);
+      setError("");
+
+      const { data } = await api.patch(`/cards/${activeCard._id}`, {
+        assignee,
+      });
+
+      upsertCard(data.card);
+
+      setActiveCard(data.card);
+    } catch (error) {
+      console.error("Assignee update error:", error);
+
+      setError(error.response?.data?.message || "Unable to update assignee.");
+    } finally {
+      setSavingAssignee(false);
+    }
+  }
+
+  async function handleNotificationClick(notification) {
+    if (!notification?._id) {
+      return;
+    }
+
+    if (!notification.read) {
+      try {
+        await api.patch(`/notifications/${notification._id}/read`);
+
+        markNotificationRead(notification._id);
+      } catch (error) {
+        console.error("Notification read error:", error);
+
+        return;
+      }
+    }
+
+    setNotificationsOpen(false);
   }
 
   /*
@@ -727,36 +711,24 @@ function handleCommentDeleted(payload) {
    */
 
   async function handleDeleteCard(card) {
-    const confirmed = window.confirm(
-      `Delete "${card.title}"?`
-    );
+    const confirmed = window.confirm(`Delete "${card.title}"?`);
 
     if (!confirmed) return;
 
     try {
       setError("");
 
-      await api.delete(
-        `/cards/${card._id}`
-      );
+      await api.delete(`/cards/${card._id}`);
 
       removeCard(card._id);
 
-      if (
-        activeCard?._id === card._id
-      ) {
+      if (activeCard?._id === card._id) {
         setActiveCard(null);
       }
     } catch (error) {
-      console.error(
-        "Delete card error:",
-        error
-      );
+      console.error("Delete card error:", error);
 
-      setError(
-        error.response?.data?.message ||
-          "Unable to delete card."
-      );
+      setError(error.response?.data?.message || "Unable to delete card.");
     }
   }
 
@@ -781,12 +753,9 @@ function handleCommentDeleted(payload) {
       setSavingList(true);
       setError("");
 
-      const { data } = await api.patch(
-        `/lists/${listId}`,
-        {
-          title,
-        }
-      );
+      const { data } = await api.patch(`/lists/${listId}`, {
+        title,
+      });
 
       setLists(
         lists.map((list) =>
@@ -795,22 +764,16 @@ function handleCommentDeleted(payload) {
                 ...list,
                 title: data.list.title,
               }
-            : list
-        )
+            : list,
+        ),
       );
 
       setEditingList(null);
       setEditingTitle("");
     } catch (error) {
-      console.error(
-        "Rename list error:",
-        error
-      );
+      console.error("Rename list error:", error);
 
-      setError(
-        error.response?.data?.message ||
-          "Unable to rename list."
-      );
+      setError(error.response?.data?.message || "Unable to rename list.");
     } finally {
       setSavingList(false);
     }
@@ -825,41 +788,26 @@ function handleCommentDeleted(payload) {
   async function handleDeleteList(list) {
     setOpenMenu(null);
 
-    const hasCards =
-      list.cards?.length > 0;
+    const hasCards = list.cards?.length > 0;
 
     const message = hasCards
       ? `Delete "${list.title}" and all ${list.cards.length} card(s) inside it?`
       : `Delete "${list.title}"?`;
 
-    const confirmed =
-      window.confirm(message);
+    const confirmed = window.confirm(message);
 
     if (!confirmed) return;
 
     try {
       setError("");
 
-      await api.delete(
-        `/lists/${list._id}`
-      );
+      await api.delete(`/lists/${list._id}`);
 
-      setLists(
-        lists.filter(
-          (item) =>
-            item._id !== list._id
-        )
-      );
+      setLists(lists.filter((item) => item._id !== list._id));
     } catch (error) {
-      console.error(
-        "Delete list error:",
-        error
-      );
+      console.error("Delete list error:", error);
 
-      setError(
-        error.response?.data?.message ||
-          "Unable to delete list."
-      );
+      setError(error.response?.data?.message || "Unable to delete list.");
     }
   }
 
@@ -870,111 +818,67 @@ function handleCommentDeleted(payload) {
    */
 
   async function handleDragEnd(result) {
-    const {
-      source,
-      destination,
-      draggableId,
-    } = result;
+    const { source, destination, draggableId } = result;
 
     if (!destination) return;
 
     if (
-      source.droppableId ===
-        destination.droppableId &&
-      source.index ===
-        destination.index
+      source.droppableId === destination.droppableId &&
+      source.index === destination.index
     ) {
       return;
     }
 
-    const currentLists = lists.map(
-      (list) => ({
-        ...list,
-        cards: [
-          ...(list.cards || []),
-        ],
-      })
+    const currentLists = lists.map((list) => ({
+      ...list,
+      cards: [...(list.cards || [])],
+    }));
+
+    const sourceList = currentLists.find(
+      (list) => list._id === source.droppableId,
     );
 
-    const sourceList =
-      currentLists.find(
-        (list) =>
-          list._id ===
-          source.droppableId
-      );
+    const destinationList = currentLists.find(
+      (list) => list._id === destination.droppableId,
+    );
 
-    const destinationList =
-      currentLists.find(
-        (list) =>
-          list._id ===
-          destination.droppableId
-      );
-
-    if (
-      !sourceList ||
-      !destinationList
-    ) {
+    if (!sourceList || !destinationList) {
       return;
     }
 
-    const cardIndex =
-      sourceList.cards.findIndex(
-        (card) =>
-          card._id === draggableId
-      );
+    const cardIndex = sourceList.cards.findIndex(
+      (card) => card._id === draggableId,
+    );
 
     if (cardIndex === -1) return;
 
-    const [movedCard] =
-      sourceList.cards.splice(
-        cardIndex,
-        1
-      );
+    const [movedCard] = sourceList.cards.splice(cardIndex, 1);
 
     const updatedCard = {
       ...movedCard,
       list: destinationList._id,
     };
 
-    destinationList.cards.splice(
-      destination.index,
-      0,
-      updatedCard
-    );
+    destinationList.cards.splice(destination.index, 0, updatedCard);
 
     setLists(currentLists);
 
     try {
-      const { data } = await api.patch(
-        `/cards/${draggableId}/move`,
-        {
-          listId:
-            destinationList._id,
-          position:
-            destination.index,
-        }
-      );
+      const { data } = await api.patch(`/cards/${draggableId}/move`, {
+        listId: destinationList._id,
+        position: destination.index,
+      });
 
       upsertCard(data.card);
     } catch (error) {
-      console.error(
-        "Move card error:",
-        error
-      );
+      console.error("Move card error:", error);
 
       try {
-        const { data } =
-          await api.get(
-            `/boards/${boardId}`
-          );
+        const { data } = await api.get(`/boards/${boardId}`);
 
-        setLists(
-          data.board.lists || []
-        );
+        setLists(data.board.lists || []);
       } catch {
-        setError(
-          "Card move failed. Please refresh the board."
-        );
+        setError("Card move failed. Please refresh the board.");
       }
     }
   }
@@ -994,206 +898,141 @@ function handleCommentDeleted(payload) {
     setCommentText("");
 
     try {
-      const { data } =
-        await api.get(
-          `/cards/${card._id}/comments`
-        );
+      const { data } = await api.get(`/cards/${card._id}/comments`);
 
-      setComments(
-        data.comments || []
-      );
+      setComments(data.comments || []);
     } catch (error) {
-      console.error(
-        "Comments loading error:",
-        error
-      );
+      console.error("Comments loading error:", error);
 
       setComments([]);
     }
   }
 
   async function handleAddComment() {
-    if (
-      !activeCard ||
-      !commentText.trim()
-    ) {
+    if (!activeCard || !commentText.trim()) {
       return;
     }
 
     try {
-      const { data } =
-        await api.post(
-          `/cards/${activeCard._id}/comments`,
-          {
-            body:
-              commentText.trim(),
-          }
-        );
+      const { data } = await api.post(`/cards/${activeCard._id}/comments`, {
+        body: commentText.trim(),
+      });
 
       setComments((previous) => {
-        const alreadyExists =
-          previous.some(
-            (item) =>
-              String(item._id) ===
-              String(data.comment._id)
-          );
+        const alreadyExists = previous.some(
+          (item) => String(item._id) === String(data.comment._id),
+        );
 
         if (alreadyExists) {
           return previous;
         }
 
-        return [
-          ...previous,
-          data.comment,
-        ];
+        return [...previous, data.comment];
       });
 
       stopTyping();
       setCommentText("");
     } catch (error) {
-      console.error(
-        "Comment error:",
-        error
-      );
+      console.error("Comment error:", error);
     }
   }
 
-   function startEditingComment(comment) {
-  const currentUserId = String(
-    user?._id || user?.id || ""
-  );
+  function startEditingComment(comment) {
+    const currentUserId = String(user?._id || user?.id || "");
 
-  const authorId = String(
-    comment.author?._id || comment.author?.id || comment.author || ""
-  );
-
-  if (!currentUserId || currentUserId !== authorId) {
-    return;
-  }
-
-  setEditingComment(comment._id);
-  setEditingCommentText(comment.body || "");
-}
-
-function cancelEditingComment() {
-  if (savingComment) return;
-
-  setEditingComment(null);
-  setEditingCommentText("");
-}
-
-async function saveCommentEdit(comment) {
-  const body = editingCommentText.trim();
-
-  if (
-    !activeCard ||
-    !comment ||
-    !body ||
-    savingComment
-  ) {
-    return;
-  }
-
-  try {
-    setSavingComment(true);
-
-    const { data } = await api.patch(
-      `/cards/${activeCard._id}/comments/${comment._id}`,
-      {
-        body,
-      }
+    const authorId = String(
+      comment.author?._id || comment.author?.id || comment.author || "",
     );
 
-    setComments((previous) =>
-      previous.map((item) =>
-        String(item._id) === String(comment._id)
-          ? data.comment
-          : item
-      )
-    );
+    if (!currentUserId || currentUserId !== authorId) {
+      return;
+    }
+
+    setEditingComment(comment._id);
+    setEditingCommentText(comment.body || "");
+  }
+
+  function cancelEditingComment() {
+    if (savingComment) return;
 
     setEditingComment(null);
     setEditingCommentText("");
-  } catch (error) {
-    console.error(
-      "Edit comment error:",
-      error
-    );
-
-    setError(
-      error.response?.data?.message ||
-        "Unable to update comment."
-    );
-  } finally {
-    setSavingComment(false);
-  }
-}
-
-async function handleDeleteComment(comment) {
-  if (!activeCard || !comment || deletingComment) {
-    return;
   }
 
-  const currentUserId = String(
-    user?._id || user?.id || ""
-  );
+  async function saveCommentEdit(comment) {
+    const body = editingCommentText.trim();
 
-  const authorId = String(
-    comment.author?._id ||
-      comment.author?.id ||
-      comment.author ||
-      ""
-  );
+    if (!activeCard || !comment || !body || savingComment) {
+      return;
+    }
 
-  if (
-    !currentUserId ||
-    currentUserId !== authorId
-  ) {
-    return;
-  }
+    try {
+      setSavingComment(true);
 
-  const confirmed = window.confirm(
-    "Delete this comment?"
-  );
+      const { data } = await api.patch(
+        `/cards/${activeCard._id}/comments/${comment._id}`,
+        {
+          body,
+        },
+      );
 
-  if (!confirmed) return;
+      setComments((previous) =>
+        previous.map((item) =>
+          String(item._id) === String(comment._id) ? data.comment : item,
+        ),
+      );
 
-  try {
-    setDeletingComment(comment._id);
-
-    await api.delete(
-      `/cards/${activeCard._id}/comments/${comment._id}`
-    );
-
-    setComments((previous) =>
-      previous.filter(
-        (item) =>
-          String(item._id) !==
-          String(comment._id)
-      )
-    );
-
-    if (
-      String(editingComment) ===
-      String(comment._id)
-    ) {
       setEditingComment(null);
       setEditingCommentText("");
+    } catch (error) {
+      console.error("Edit comment error:", error);
+
+      setError(error.response?.data?.message || "Unable to update comment.");
+    } finally {
+      setSavingComment(false);
     }
-  } catch (error) {
-    console.error(
-      "Delete comment error:",
-      error
+  }
+
+  async function handleDeleteComment(comment) {
+    if (!activeCard || !comment || deletingComment) {
+      return;
+    }
+
+    const currentUserId = String(user?._id || user?.id || "");
+
+    const authorId = String(
+      comment.author?._id || comment.author?.id || comment.author || "",
     );
 
-    setError(
-      error.response?.data?.message ||
-        "Unable to delete comment."
-    );
-  } finally {
-    setDeletingComment(null);
+    if (!currentUserId || currentUserId !== authorId) {
+      return;
+    }
+
+    const confirmed = window.confirm("Delete this comment?");
+
+    if (!confirmed) return;
+
+    try {
+      setDeletingComment(comment._id);
+
+      await api.delete(`/cards/${activeCard._id}/comments/${comment._id}`);
+
+      setComments((previous) =>
+        previous.filter((item) => String(item._id) !== String(comment._id)),
+      );
+
+      if (String(editingComment) === String(comment._id)) {
+        setEditingComment(null);
+        setEditingCommentText("");
+      }
+    } catch (error) {
+      console.error("Delete comment error:", error);
+
+      setError(error.response?.data?.message || "Unable to delete comment.");
+    } finally {
+      setDeletingComment(null);
+    }
   }
-} 
 
   /*
    * =========================================================
@@ -1202,28 +1041,22 @@ async function handleDeleteComment(comment) {
    */
 
   const filteredLists = useMemo(() => {
-    const query =
-      search.trim().toLowerCase();
+    const query = search.trim().toLowerCase();
 
     if (!query) return lists;
 
     return lists.map((list) => ({
       ...list,
-      cards: (list.cards || []).filter(
-        (card) =>
-          card.title
-            ?.toLowerCase()
-            .includes(query)
+      cards: (list.cards || []).filter((card) =>
+        card.title?.toLowerCase().includes(query),
       ),
     }));
   }, [lists, search]);
 
-  const searchResultCount =
-    filteredLists.reduce(
-      (count, list) =>
-        count + (list.cards || []).length,
-      0
-    );
+  const searchResultCount = filteredLists.reduce(
+    (count, list) => count + (list.cards || []).length,
+    0,
+  );
 
   /*
    * =========================================================
@@ -1232,13 +1065,9 @@ async function handleDeleteComment(comment) {
    */
 
   function logout() {
-    localStorage.removeItem(
-      "orbit_token"
-    );
+    localStorage.removeItem("orbit_token");
 
-    localStorage.removeItem(
-      "orbit_user"
-    );
+    localStorage.removeItem("orbit_user");
 
     navigate("/login");
   }
@@ -1321,16 +1150,13 @@ async function handleDeleteComment(comment) {
     );
   }
 
-  const workspaceName =
-    board?.workspace?.name ||
-    "Workspace";
+  const workspaceName = board?.workspace?.name || "Workspace";
 
-  const onlineCount =
-    Object.keys(onlineUsers).length;
+  const onlineCount = Object.keys(onlineUsers).length;
 
   const totalCardCount = lists.reduce(
     (count, list) => count + (list.cards || []).length,
-    0
+    0,
   );
 
   return (
@@ -1339,7 +1165,6 @@ async function handleDeleteComment(comment) {
         className="min-h-screen overflow-hidden bg-[#F4F0E7] text-[#203C35]"
         onClick={() => setOpenMenu(null)}
       >
-
         {/* =====================================================
             PLANET NAVIGATION
         ===================================================== */}
@@ -1394,12 +1219,9 @@ async function handleDeleteComment(comment) {
 
         <aside
           className={`orbit-sidebar fixed left-0 top-0 z-[60] flex h-screen w-[292px] flex-col overflow-hidden border-r border-[#31574D] bg-[#203C35] text-[#F7EEDC] shadow-[24px_0_70px_rgba(28,55,47,0.18)] ${
-            sidebarOpen
-              ? "translate-x-0"
-              : "-translate-x-[calc(100%-1px)]"
+            sidebarOpen ? "translate-x-0" : "-translate-x-[calc(100%-1px)]"
           }`}
         >
-
           {/* Sidebar atmosphere */}
 
           <div className="pointer-events-none absolute -right-24 -top-28 h-64 w-64 rounded-full bg-[#A8CFC1]/[0.07] blur-2xl" />
@@ -1409,11 +1231,8 @@ async function handleDeleteComment(comment) {
           {/* BRAND */}
 
           <div className="relative border-b border-[#31574D] px-5 py-5">
-
             <div className="flex items-center justify-between">
-
               <div className="flex items-center gap-3">
-
                 <div className="orbit-mini-planet">
                   <span />
                 </div>
@@ -1427,7 +1246,6 @@ async function handleDeleteComment(comment) {
                     Collaborative space
                   </p>
                 </div>
-
               </div>
 
               <button
@@ -1438,27 +1256,22 @@ async function handleDeleteComment(comment) {
               >
                 <X size={18} />
               </button>
-
             </div>
-
           </div>
 
           {/* WORKSPACE */}
 
           <div className="relative border-b border-[#31574D] p-4">
-
             <p className="mb-2 px-2 text-[10px] font-bold uppercase tracking-[0.18em] text-[#8EA79E]">
               Workspace
             </p>
 
             <div className="flex items-center gap-3 rounded-2xl border border-[#3B6258] bg-[#26483F] px-3 py-3">
-
               <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-[#B7D2C6]/10 text-[#B7D2C6]">
                 <FolderKanban size={17} />
               </div>
 
               <div className="min-w-0">
-
                 <p className="truncate text-sm font-semibold text-[#F7EEDC]">
                   {workspaceName}
                 </p>
@@ -1466,22 +1279,16 @@ async function handleDeleteComment(comment) {
                 <p className="mt-0.5 text-[11px] text-[#9DB3AA]">
                   Current workspace
                 </p>
-
               </div>
-
             </div>
-
           </div>
 
           {/* NAVIGATION */}
 
           <nav className="relative space-y-1 px-4 py-5">
-
             <button
               type="button"
-              onClick={() =>
-                navigate("/dashboard")
-              }
+              onClick={() => navigate("/dashboard")}
               className="flex w-full items-center gap-3 rounded-xl px-3 py-3 text-sm text-[#AFC2BA] transition hover:bg-[#31574D] hover:text-[#F7EEDC]"
             >
               <LayoutDashboard size={18} />
@@ -1492,12 +1299,8 @@ async function handleDeleteComment(comment) {
               type="button"
               className="flex w-full items-center gap-3 rounded-xl border border-[#55786D] bg-[#31574D] px-3 py-3 text-sm font-semibold text-[#F7EEDC] shadow-sm"
             >
-              <FolderKanban
-                size={18}
-                className="text-[#B7D2C6]"
-              />
+              <FolderKanban size={18} className="text-[#B7D2C6]" />
               Boards
-
               <span className="ml-auto h-1.5 w-1.5 rounded-full bg-[#D58C70]" />
             </button>
 
@@ -1505,9 +1308,7 @@ async function handleDeleteComment(comment) {
               <button
                 type="button"
                 onClick={() =>
-                  navigate(
-                    `/workspaces/${board.workspace._id}/settings`
-                  )
+                  navigate(`/workspaces/${board.workspace._id}/settings`)
                 }
                 className="flex w-full items-center gap-3 rounded-xl px-3 py-3 text-sm text-[#AFC2BA] transition hover:bg-[#31574D] hover:text-[#F7EEDC]"
               >
@@ -1515,60 +1316,43 @@ async function handleDeleteComment(comment) {
                 Workspace Settings
               </button>
             )}
-
           </nav>
 
           {/* CURRENT BOARD */}
 
           <div className="relative px-4">
-
             <p className="mb-2 px-2 text-[10px] font-bold uppercase tracking-[0.18em] text-[#8EA79E]">
               Current board
             </p>
 
             <div className="rounded-2xl border border-[#3B6258] bg-[#19352F] p-3.5">
-
               <div className="flex items-center gap-3">
-
                 <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#D58C70]/10 text-[#DFA18A]">
                   <FolderKanban size={17} />
                 </div>
 
                 <div className="min-w-0">
-
                   <p className="truncate text-sm font-semibold text-[#F7EEDC]">
                     {board?.name || "Board"}
                   </p>
 
                   <p className="mt-1 text-[11px] text-[#8FA9A0]">
-                    {lists.length}{" "}
-                    {lists.length === 1
-                      ? "list"
-                      : "lists"}
+                    {lists.length} {lists.length === 1 ? "list" : "lists"}
                   </p>
-
                 </div>
-
               </div>
-
             </div>
-
           </div>
 
           {/* SIDEBAR FOOTER */}
 
           <div className="relative mt-auto border-t border-[#31574D] p-4">
-
             <div className="flex items-center gap-3">
-
               <div className="orbit-user-avatar">
-                {user?.name
-                  ?.charAt(0)
-                  ?.toUpperCase() || "U"}
+                {user?.name?.charAt(0)?.toUpperCase() || "U"}
               </div>
 
               <div className="min-w-0 flex-1">
-
                 <p className="truncate text-sm font-semibold text-[#F7EEDC]">
                   {user?.name || "User"}
                 </p>
@@ -1576,7 +1360,6 @@ async function handleDeleteComment(comment) {
                 <p className="truncate text-[11px] text-[#91AAA1]">
                   {user?.email || ""}
                 </p>
-
               </div>
 
               <button
@@ -1587,11 +1370,8 @@ async function handleDeleteComment(comment) {
               >
                 <LogOut size={17} />
               </button>
-
             </div>
-
           </div>
-
         </aside>
 
         {/* =====================================================
@@ -1602,24 +1382,18 @@ async function handleDeleteComment(comment) {
           className="flex min-h-screen min-w-0 flex-col"
           onClick={() => setOpenMenu(null)}
         >
-
           {/* ===================================================
               HEADER
           =================================================== */}
 
           <header className="relative shrink-0 border-b border-[#DED8CA] bg-[#F8F5ED]/95 backdrop-blur-xl">
-
             <div className="absolute inset-x-0 bottom-0 h-px bg-gradient-to-r from-transparent via-[#D58C70]/30 to-transparent" />
 
             <div className="flex min-h-[84px] items-center justify-between gap-5 px-5 lg:px-8">
-
               <div className="flex min-w-0 items-center gap-4">
-
                 <button
                   type="button"
-                  onClick={() =>
-                    navigate("/dashboard")
-                  }
+                  onClick={() => navigate("/dashboard")}
                   title="Back to dashboard"
                   className="hidden h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-[#DED8CA] bg-[#F4F0E7] text-[#60736C] transition hover:border-[#B9C9C1] hover:bg-white hover:text-[#203C35] sm:flex"
                 >
@@ -1627,82 +1401,55 @@ async function handleDeleteComment(comment) {
                 </button>
 
                 <div className="min-w-0">
-
                   <div className="flex items-center gap-2 text-[11px] font-medium text-[#8A9892]">
-
-                    <span className="truncate">
-                      {workspaceName}
-                    </span>
+                    <span className="truncate">{workspaceName}</span>
 
                     <ChevronRight size={12} />
 
-                    <span>
-                      Boards
-                    </span>
+                    <span>Boards</span>
 
                     <ChevronRight size={12} />
 
                     <span className="truncate font-semibold text-[#55736A]">
                       {board?.name || "Board"}
                     </span>
-
                   </div>
 
                   <h1 className="mt-1 truncate text-[25px] font-bold tracking-[-0.025em] text-[#203C35]">
                     {board?.name || "Board"}
                   </h1>
-
                 </div>
-
               </div>
 
               <div className="flex shrink-0 items-center gap-2 sm:gap-3">
-
                 {/* ONLINE */}
 
                 <div className="hidden items-center gap-2 rounded-full border border-[#D8E0DB] bg-[#EEF3EF] px-3 py-2 sm:flex">
-
                   <span className="relative flex h-2.5 w-2.5">
-
                     <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[#79B69F] opacity-50" />
 
                     <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-[#4D997E]" />
-
                   </span>
 
                   <span className="text-[11px] font-semibold text-[#60736C]">
                     {onlineCount}{" "}
-                    {onlineCount === 1
-                      ? "collaborator"
-                      : "collaborators"}{" "}
+                    {onlineCount === 1 ? "collaborator" : "collaborators"}{" "}
                     online
                   </span>
-
                 </div>
 
                 {/* SEARCH */}
 
                 <div className="flex h-11 items-center rounded-2xl border border-[#DCD6C9] bg-white px-3 shadow-[0_4px_18px_rgba(48,61,54,0.04)]">
-
-                  <Search
-                    size={17}
-                    className="shrink-0 text-[#8B9892]"
-                  />
+                  <Search size={17} className="shrink-0 text-[#8B9892]" />
 
                   <input
                     className="w-28 bg-transparent px-2.5 text-sm text-[#203C35] outline-none placeholder:text-[#A6ADA8] sm:w-48"
                     placeholder="Search cards..."
                     value={search}
-                    onChange={(event) =>
-                      setSearch(
-                        event.target.value
-                      )
-                    }
+                    onChange={(event) => setSearch(event.target.value)}
                     onKeyDown={(event) => {
-                      if (
-                        event.key ===
-                        "Escape"
-                      ) {
+                      if (event.key === "Escape") {
                         setSearch("");
                       }
                     }}
@@ -1711,58 +1458,142 @@ async function handleDeleteComment(comment) {
                   {search.trim() && (
                     <button
                       type="button"
-                      onClick={() =>
-                        setSearch("")
-                      }
+                      onClick={() => setSearch("")}
                       className="rounded-lg p-1.5 text-[#89958F] transition hover:bg-[#F0ECE3] hover:text-[#203C35]"
                       title="Clear search"
                     >
                       <X size={15} />
                     </button>
                   )}
-
                 </div>
 
                 {search.trim() && (
                   <span className="hidden whitespace-nowrap text-[11px] font-semibold text-[#75847D] md:inline">
                     {searchResultCount}{" "}
-                    {searchResultCount === 1
-                      ? "card"
-                      : "cards"}{" "}
-                    found
+                    {searchResultCount === 1 ? "card" : "cards"} found
                   </span>
                 )}
 
-                <button
-                  type="button"
-                  className="hidden h-11 w-11 items-center justify-center rounded-2xl border border-[#DCD6C9] bg-white text-[#718079] shadow-[0_4px_18px_rgba(48,61,54,0.04)] transition hover:border-[#BFCBC5] hover:bg-[#F7F4EC] hover:text-[#203C35] sm:flex"
-                  title="Notifications"
-                >
-                  <Bell size={18} />
-                </button>
+                <div className="relative hidden sm:block">
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setNotificationsOpen((previous) => !previous)
+                    }
+                    className="relative flex h-11 w-11 items-center justify-center rounded-2xl border border-[#DCD6C9] bg-white text-[#718079] shadow-[0_4px_18px_rgba(48,61,54,0.04)] transition hover:border-[#BFCBC5] hover:bg-[#F7F4EC] hover:text-[#203C35]"
+                    title="Notifications"
+                  >
+                    <Bell size={18} />
 
+                    {notifications.filter((notification) => !notification.read)
+                      .length > 0 && (
+                      <span className="absolute -right-1 -top-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-[#B85C5C] px-1 text-[9px] font-bold text-white">
+                        {notifications.filter(
+                          (notification) => !notification.read,
+                        ).length > 99
+                          ? "99+"
+                          : notifications.filter(
+                              (notification) => !notification.read,
+                            ).length}
+                      </span>
+                    )}
+                  </button>
+
+                  {notificationsOpen && (
+                    <div className="absolute right-0 top-14 z-50 w-80 overflow-hidden rounded-2xl border border-[#DCD6C9] bg-[#FBF9F3] shadow-[0_18px_50px_rgba(48,61,54,0.14)]">
+                      <div className="border-b border-[#E1DCD1] px-4 py-3">
+                        <div className="flex items-center justify-between">
+                          <p className="text-sm font-bold text-[#29453D]">
+                            Notifications
+                          </p>
+
+                          {notifications.filter(
+                            (notification) => !notification.read,
+                          ).length > 0 && (
+                            <span className="text-[10px] font-semibold uppercase tracking-[0.12em] text-[#789389]">
+                              {
+                                notifications.filter(
+                                  (notification) => !notification.read,
+                                ).length
+                              }{" "}
+                              unread
+                            </span>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="max-h-80 overflow-y-auto">
+                        {notifications.length === 0 ? (
+                          <div className="px-5 py-10 text-center">
+                            <Bell
+                              size={22}
+                              className="mx-auto mb-3 text-[#9AA49F]"
+                            />
+
+                            <p className="text-sm font-semibold text-[#596C64]">
+                              No notifications yet
+                            </p>
+
+                            <p className="mt-1 text-xs text-[#8A9691]">
+                              You're all caught up.
+                            </p>
+                          </div>
+                        ) : (
+                          notifications.map((notification) => (
+                            <button
+                              key={notification._id}
+                              type="button"
+                              onClick={() =>
+                                handleNotificationClick(notification)
+                              }
+                              className={`block w-full border-b border-[#E8E3D9] px-4 py-3 text-left transition hover:bg-[#F1EEE6] ${
+                                notification.read
+                                  ? "bg-[#FBF9F3]"
+                                  : "bg-[#F0F4EF]"
+                              }`}
+                            >
+                              <div className="flex items-start gap-3">
+                                <span
+                                  className={`mt-1 h-2 w-2 shrink-0 rounded-full ${
+                                    notification.read
+                                      ? "bg-[#C9CEC9]"
+                                      : "bg-[#6D9586]"
+                                  }`}
+                                />
+
+                                <div className="min-w-0">
+                                  <p className="text-sm font-semibold leading-5 text-[#31574D]">
+                                    {notification.message}
+                                  </p>
+
+                                  <p className="mt-1 text-[10px] font-medium uppercase tracking-[0.08em] text-[#8A9691]">
+                                    {notification.type?.replaceAll("_", " ") ||
+                                      "Notification"}
+                                  </p>
+                                </div>
+                              </div>
+                            </button>
+                          ))
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
               </div>
-
             </div>
 
             {/* BOARD TOOLBAR */}
 
             <div className="flex items-center justify-between border-t border-[#E8E3D9] px-5 py-3 lg:px-8">
-
               <div className="flex items-center gap-2.5 text-xs font-medium text-[#77857F]">
-
                 <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-[#E8EFEA] text-[#5E8375]">
                   <Users size={14} />
                 </div>
 
-                <span>
-                  Collaborative board
-                </span>
-
+                <span>Collaborative board</span>
               </div>
 
               <div className="flex items-center gap-3">
-
                 <span className="hidden text-[11px] font-medium text-[#9AA49F] sm:inline">
                   Drag cards to move them
                 </span>
@@ -1776,17 +1607,12 @@ async function handleDeleteComment(comment) {
                 </span>
 
                 <span className="rounded-full bg-[#E8E3D9] px-2.5 py-1 text-[10px] font-bold text-[#66756E]">
-                  {lists.length}{" "}
-                  {lists.length === 1 ? "list" : "lists"}
+                  {lists.length} {lists.length === 1 ? "list" : "lists"}
                   {" • "}
-                  {totalCardCount}{" "}
-                  {totalCardCount === 1 ? "card" : "cards"}
+                  {totalCardCount} {totalCardCount === 1 ? "card" : "cards"}
                 </span>
-
               </div>
-
             </div>
-
           </header>
 
           {/* ===================================================
@@ -1795,19 +1621,15 @@ async function handleDeleteComment(comment) {
 
           {error && (
             <div className="mx-5 mt-4 flex items-center justify-between rounded-2xl border border-[#E5B6A7] bg-[#FFF0EB] px-4 py-3 text-sm text-[#A95842] shadow-sm lg:mx-8">
-
               <span>{error}</span>
 
               <button
                 type="button"
-                onClick={() =>
-                  setError("")
-                }
+                onClick={() => setError("")}
                 className="rounded-lg p-1 transition hover:bg-[#F8DCD3]"
               >
                 <X size={17} />
               </button>
-
             </div>
           )}
 
@@ -1816,26 +1638,16 @@ async function handleDeleteComment(comment) {
           =================================================== */}
 
           <section className="flex-1 overflow-x-auto overflow-y-hidden bg-[#F4F0E7] p-5 lg:p-8">
-
-            <DragDropContext
-              onDragEnd={handleDragEnd}
-            >
-
+            <DragDropContext onDragEnd={handleDragEnd}>
               <div className="flex min-h-full min-w-max items-start gap-5 pb-5">
-
                 {/* SEARCH EMPTY STATE */}
 
                 {search.trim() &&
                 filteredLists.every(
-                  (list) =>
-                    (list.cards || [])
-                      .length === 0
+                  (list) => (list.cards || []).length === 0,
                 ) ? (
-
                   <div className="flex min-h-[420px] w-full min-w-[620px] items-center justify-center">
-
                     <div className="max-w-md text-center">
-
                       <div className="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-[20px] border border-[#D9D4C8] bg-[#FAF8F2] text-[#81928A] shadow-[0_8px_30px_rgba(40,55,48,0.05)]">
                         <Search size={25} />
                       </div>
@@ -1854,416 +1666,261 @@ async function handleDeleteComment(comment) {
 
                       <button
                         type="button"
-                        onClick={() =>
-                          setSearch("")
-                        }
+                        onClick={() => setSearch("")}
                         className="mt-5 rounded-xl bg-[#31574D] px-5 py-2.5 text-sm font-semibold text-[#F7EEDC] shadow-[0_8px_20px_rgba(49,87,77,0.16)] transition hover:-translate-y-0.5 hover:bg-[#284C43]"
                       >
                         Clear search
                       </button>
-
                     </div>
-
                   </div>
-
                 ) : (
+                  filteredLists.map((list) => (
+                    <Droppable droppableId={String(list._id)} key={list._id}>
+                      {(provided, snapshot) => (
+                        <div
+                          ref={provided.innerRef}
+                          {...provided.droppableProps}
+                          className={`orbit-list flex w-[318px] max-h-[calc(100vh-185px)] shrink-0 flex-col overflow-hidden rounded-[22px] border transition-all duration-200 ${
+                            snapshot.isDraggingOver
+                              ? "border-[#82AA9C] bg-[#EEF4F0] shadow-[0_12px_35px_rgba(55,88,76,0.10)]"
+                              : "border-[#DAD5C9] bg-[#EEEAE1]"
+                          }`}
+                        >
+                          {/* LIST HEADER */}
 
-                  filteredLists.map(
-                    (list) => (
-                      <Droppable
-                        droppableId={String(
-                          list._id
-                        )}
-                        key={list._id}
-                      >
-                        {(
-                          provided,
-                          snapshot
-                        ) => (
-
-                          <div
-                            ref={
-                              provided.innerRef
-                            }
-                            {...provided.droppableProps}
-                            className={`orbit-list flex w-[318px] max-h-[calc(100vh-185px)] shrink-0 flex-col overflow-hidden rounded-[22px] border transition-all duration-200 ${
-                              snapshot.isDraggingOver
-                                ? "border-[#82AA9C] bg-[#EEF4F0] shadow-[0_12px_35px_rgba(55,88,76,0.10)]"
-                                : "border-[#DAD5C9] bg-[#EEEAE1]"
-                            }`}
-                          >
-
-                            {/* LIST HEADER */}
-
-                            <div className="shrink-0 border-b border-[#DAD5C9] px-4 py-4">
-
-                              {editingList ===
-                              list._id ? (
-
-                                <div className="flex gap-2">
-
-                                  <input
-                                    autoFocus
-                                    value={
-                                      editingTitle
+                          <div className="shrink-0 border-b border-[#DAD5C9] px-4 py-4">
+                            {editingList === list._id ? (
+                              <div className="flex gap-2">
+                                <input
+                                  autoFocus
+                                  value={editingTitle}
+                                  onChange={(event) =>
+                                    setEditingTitle(event.target.value)
+                                  }
+                                  onKeyDown={(event) => {
+                                    if (event.key === "Enter") {
+                                      saveListName(list._id);
                                     }
-                                    onChange={(
-                                      event
-                                    ) =>
-                                      setEditingTitle(
-                                        event.target
-                                          .value
-                                      )
+
+                                    if (event.key === "Escape") {
+                                      setEditingList(null);
                                     }
-                                    onKeyDown={(
-                                      event
-                                    ) => {
-                                      if (
-                                        event.key ===
-                                        "Enter"
-                                      ) {
-                                        saveListName(
-                                          list._id
-                                        );
-                                      }
+                                  }}
+                                  className="min-w-0 flex-1 rounded-xl border border-[#BFCBC5] bg-white px-3 py-2 text-sm font-medium text-[#203C35] outline-none focus:border-[#6F988A] focus:ring-2 focus:ring-[#A8CFC1]/20"
+                                />
 
-                                      if (
-                                        event.key ===
-                                        "Escape"
-                                      ) {
-                                        setEditingList(
-                                          null
-                                        );
-                                      }
-                                    }}
-                                    className="min-w-0 flex-1 rounded-xl border border-[#BFCBC5] bg-white px-3 py-2 text-sm font-medium text-[#203C35] outline-none focus:border-[#6F988A] focus:ring-2 focus:ring-[#A8CFC1]/20"
-                                  />
+                                <button
+                                  type="button"
+                                  disabled={savingList}
+                                  onClick={() => saveListName(list._id)}
+                                  className="rounded-xl bg-[#31574D] px-3 text-xs font-bold text-[#F7EEDC] transition hover:bg-[#284C43] disabled:opacity-50"
+                                >
+                                  Save
+                                </button>
+                              </div>
+                            ) : (
+                              <div className="flex items-center justify-between gap-3">
+                                <div className="flex min-w-0 items-center gap-2.5">
+                                  <span className="relative flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-[#DCE8E2] text-[#527B6D]">
+                                    <Circle size={8} fill="currentColor" />
 
+                                    <span className="absolute bottom-1 right-1 h-1.5 w-1.5 rounded-full bg-[#D58C70]" />
+                                  </span>
+
+                                  <div className="min-w-0">
+                                    <h2 className="truncate text-sm font-bold text-[#29453D]">
+                                      {list.title}
+                                    </h2>
+
+                                    <p className="mt-0.5 text-[10px] font-medium uppercase tracking-[0.12em] text-[#8A9892]">
+                                      {list.cards?.length || 0}{" "}
+                                      {list.cards?.length === 1
+                                        ? "card"
+                                        : "cards"}
+                                    </p>
+                                  </div>
+                                </div>
+
+                                <div
+                                  className="relative"
+                                  onClick={(event) => event.stopPropagation()}
+                                >
                                   <button
                                     type="button"
-                                    disabled={
-                                      savingList
-                                    }
                                     onClick={() =>
-                                      saveListName(
-                                        list._id
+                                      setOpenMenu(
+                                        openMenu === list._id ? null : list._id,
                                       )
                                     }
-                                    className="rounded-xl bg-[#31574D] px-3 text-xs font-bold text-[#F7EEDC] transition hover:bg-[#284C43] disabled:opacity-50"
+                                    className="rounded-xl p-2 text-[#7B8983] transition hover:bg-[#DDD8CC] hover:text-[#29453D]"
                                   >
-                                    Save
+                                    <MoreHorizontal size={18} />
                                   </button>
 
-                                </div>
+                                  {openMenu === list._id && (
+                                    <div className="absolute right-0 top-10 z-30 w-44 overflow-hidden rounded-2xl border border-[#D6D1C5] bg-[#FBF9F3] p-1.5 shadow-[0_16px_45px_rgba(38,51,45,0.16)]">
+                                      <button
+                                        type="button"
+                                        onClick={() => startEditingList(list)}
+                                        className="flex w-full items-center gap-2 rounded-xl px-3 py-2.5 text-left text-sm font-medium text-[#526A61] transition hover:bg-[#EEF2EE] hover:text-[#203C35]"
+                                      >
+                                        <Pencil size={15} />
+                                        Rename
+                                      </button>
 
-                              ) : (
-
-                                <div className="flex items-center justify-between gap-3">
-
-                                  <div className="flex min-w-0 items-center gap-2.5">
-
-                                    <span className="relative flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-[#DCE8E2] text-[#527B6D]">
-                                      <Circle
-                                        size={8}
-                                        fill="currentColor"
-                                      />
-
-                                      <span className="absolute bottom-1 right-1 h-1.5 w-1.5 rounded-full bg-[#D58C70]" />
-                                    </span>
-
-                                    <div className="min-w-0">
-
-                                      <h2 className="truncate text-sm font-bold text-[#29453D]">
-                                        {list.title}
-                                      </h2>
-
-                                      <p className="mt-0.5 text-[10px] font-medium uppercase tracking-[0.12em] text-[#8A9892]">
-                                        {list.cards
-                                          ?.length ||
-                                          0}{" "}
-                                        {list.cards
-                                          ?.length === 1
-                                          ? "card"
-                                          : "cards"}
-                                      </p>
-
+                                      <button
+                                        type="button"
+                                        onClick={() => handleDeleteList(list)}
+                                        className="flex w-full items-center gap-2 rounded-xl px-3 py-2.5 text-left text-sm font-medium text-[#B06450] transition hover:bg-[#FFF0EB]"
+                                      >
+                                        <Trash2 size={15} />
+                                        Delete
+                                      </button>
                                     </div>
-
-                                  </div>
-
-                                  <div
-                                    className="relative"
-                                    onClick={(event) =>
-                                      event.stopPropagation()
-                                    }
-                                  >
-
-                                    <button
-                                      type="button"
-                                      onClick={() =>
-                                        setOpenMenu(
-                                          openMenu ===
-                                            list._id
-                                            ? null
-                                            : list._id
-                                        )
-                                      }
-                                      className="rounded-xl p-2 text-[#7B8983] transition hover:bg-[#DDD8CC] hover:text-[#29453D]"
-                                    >
-                                      <MoreHorizontal
-                                        size={18}
-                                      />
-                                    </button>
-
-                                    {openMenu ===
-                                      list._id && (
-
-                                      <div className="absolute right-0 top-10 z-30 w-44 overflow-hidden rounded-2xl border border-[#D6D1C5] bg-[#FBF9F3] p-1.5 shadow-[0_16px_45px_rgba(38,51,45,0.16)]">
-
-                                        <button
-                                          type="button"
-                                          onClick={() =>
-                                            startEditingList(
-                                              list
-                                            )
-                                          }
-                                          className="flex w-full items-center gap-2 rounded-xl px-3 py-2.5 text-left text-sm font-medium text-[#526A61] transition hover:bg-[#EEF2EE] hover:text-[#203C35]"
-                                        >
-                                          <Pencil size={15} />
-                                          Rename
-                                        </button>
-
-                                        <button
-                                          type="button"
-                                          onClick={() =>
-                                            handleDeleteList(
-                                              list
-                                            )
-                                          }
-                                          className="flex w-full items-center gap-2 rounded-xl px-3 py-2.5 text-left text-sm font-medium text-[#B06450] transition hover:bg-[#FFF0EB]"
-                                        >
-                                          <Trash2 size={15} />
-                                          Delete
-                                        </button>
-
-                                      </div>
-                                    )}
-
-                                  </div>
-
+                                  )}
                                 </div>
-
-                              )}
-
-                            </div>
-
-                            {/* CARDS */}
-
-                            <div className="min-h-[80px] flex-1 overflow-y-auto p-3">
-
-                              <div className="space-y-3">
-
-                                {(list.cards || []).map(
-                                  (
-                                    card,
-                                    index
-                                  ) => (
-
-                                    <Draggable
-                                      key={
-                                        card._id
-                                      }
-                                      draggableId={String(
-                                        card._id
-                                      )}
-                                      index={index}
-                                    >
-
-                                      {(
-                                        dragProvided,
-                                        snapshot
-                                      ) => (
-
-                                        <div
-                                          ref={
-                                            dragProvided.innerRef
-                                          }
-                                          {...dragProvided.draggableProps}
-                                          {...dragProvided.dragHandleProps}
-                                          onClick={() =>
-                                            openCard(
-                                              card
-                                            )
-                                          }
-                                          className={`orbit-card group cursor-grab rounded-[18px] border bg-[#FBF9F3] p-4 active:cursor-grabbing ${
-                                            snapshot.isDragging
-                                              ? "orbit-card-dragging border-[#7BA092] shadow-[0_22px_45px_rgba(36,61,52,0.18)]"
-                                              : "border-[#DED9CD] shadow-[0_5px_18px_rgba(45,57,51,0.045)] hover:-translate-y-0.5 hover:border-[#BCCBC4] hover:shadow-[0_12px_28px_rgba(45,57,51,0.09)]"
-                                          }`}
-                                        >
-
-                                          <div className="flex items-start justify-between gap-3">
-
-                                            <p className="min-w-0 flex-1 break-words text-sm font-semibold leading-5 text-[#29453D]">
-                                              {card.title}
-                                            </p>
-
-                                            <div
-                                              className="flex shrink-0 items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100"
-                                              onClick={(event) =>
-                                                event.stopPropagation()
-                                              }
-                                            >
-
-                                              <button
-                                                type="button"
-                                                title="Edit card"
-                                                onClick={() =>
-                                                  startEditingCard(
-                                                    card
-                                                  )
-                                                }
-                                                className="rounded-lg p-1.5 text-[#89968F] transition hover:bg-[#E9EEE9] hover:text-[#31574D]"
-                                              >
-                                                <Pencil size={14} />
-                                              </button>
-
-                                              <button
-                                                type="button"
-                                                title="Delete card"
-                                                onClick={() =>
-                                                  handleDeleteCard(
-                                                    card
-                                                  )
-                                                }
-                                                className="rounded-lg p-1.5 text-[#89968F] transition hover:bg-[#FFF0EB] hover:text-[#B06450]"
-                                              >
-                                                <Trash2 size={14} />
-                                              </button>
-
-                                            </div>
-
-                                          </div>
-
-                                          <div className="mt-4 flex items-center justify-between gap-3">
-
-                                            <span
-                                              className={`rounded-full px-2.5 py-1 text-[9px] font-bold uppercase tracking-[0.12em] ${
-                                                card.priority === "high"
-                                                  ? "bg-[#F7DDD4] text-[#A85A43]"
-                                                  : card.priority === "low"
-                                                    ? "bg-[#E4EDE8] text-[#5E8375]"
-                                                    : "bg-[#ECE8DC] text-[#7A786C]"
-                                              }`}
-                                            >
-                                              {(
-                                                card.priority ||
-                                                "medium"
-                                              ).charAt(0).toUpperCase() +
-                                                (
-                                                  card.priority ||
-                                                  "medium"
-                                                ).slice(1)}
-                                            </span>
-
-                                            <div className="flex items-center gap-1.5 text-[#9AA49F]">
-                                              <MessageSquare
-                                                size={13}
-                                              />
-
-                                              <span className="text-[10px] font-medium">
-                                                Open
-                                              </span>
-                                            </div>
-
-                                          </div>
-
-                                        </div>
-
-                                      )}
-
-                                    </Draggable>
-                                  )
-                                )}
-
                               </div>
-
-                              {provided.placeholder}
-
-                              {(list.cards || [])
-                                .length ===
-                                0 && (
-
-                                <div className="flex min-h-[100px] items-center justify-center rounded-[17px] border border-dashed border-[#D4CFC3] bg-[#F5F2EA]/60 px-4 text-center">
-
-                                  <div>
-                                    <div className="mx-auto mb-2 flex h-7 w-7 items-center justify-center rounded-lg bg-[#E7E3D8] text-[#8B9892]">
-                                      <Plus size={13} />
-                                    </div>
-
-                                    <p className="text-xs font-semibold text-[#718079]">
-                                      No cards yet
-                                    </p>
-
-                                    <p className="mt-1 text-[10px] text-[#9AA49F]">
-                                      Add a card to get started.
-                                    </p>
-                                  </div>
-
-                                </div>
-                              )}
-
-                            </div>
-
-                            {/* ADD CARD */}
-
-                            <div className="shrink-0 border-t border-[#DAD5C9] p-3">
-
-                              <button
-                                type="button"
-                                disabled={
-                                  creatingCard
-                                }
-                                onClick={() =>
-                                  handleCreateCard(
-                                    list._id
-                                  )
-                                }
-                                className="flex w-full items-center justify-center gap-2 rounded-xl border border-transparent px-3 py-2.5 text-xs font-semibold text-[#687B73] transition hover:border-[#C9D4CE] hover:bg-[#F5F2EA] hover:text-[#31574D] disabled:opacity-50"
-                              >
-
-                                <Plus size={15} />
-
-                                {creatingCard
-                                  ? "Creating..."
-                                  : "Add card"}
-
-                              </button>
-
-                            </div>
-
+                            )}
                           </div>
 
-                        )}
-                      </Droppable>
-                    )
-                  )
+                          {/* CARDS */}
+
+                          <div className="min-h-[80px] flex-1 overflow-y-auto p-3">
+                            <div className="space-y-3">
+                              {(list.cards || []).map((card, index) => (
+                                <Draggable
+                                  key={card._id}
+                                  draggableId={String(card._id)}
+                                  index={index}
+                                >
+                                  {(dragProvided, snapshot) => (
+                                    <div
+                                      ref={dragProvided.innerRef}
+                                      {...dragProvided.draggableProps}
+                                      {...dragProvided.dragHandleProps}
+                                      onClick={() => openCard(card)}
+                                      className={`orbit-card group cursor-grab rounded-[18px] border bg-[#FBF9F3] p-4 active:cursor-grabbing ${
+                                        snapshot.isDragging
+                                          ? "orbit-card-dragging border-[#7BA092] shadow-[0_22px_45px_rgba(36,61,52,0.18)]"
+                                          : "border-[#DED9CD] shadow-[0_5px_18px_rgba(45,57,51,0.045)] hover:-translate-y-0.5 hover:border-[#BCCBC4] hover:shadow-[0_12px_28px_rgba(45,57,51,0.09)]"
+                                      }`}
+                                    >
+                                      <div className="flex items-start justify-between gap-3">
+                                        <p className="min-w-0 flex-1 break-words text-sm font-semibold leading-5 text-[#29453D]">
+                                          {card.title}
+                                        </p>
+
+                                        <div
+                                          className="flex shrink-0 items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100"
+                                          onClick={(event) =>
+                                            event.stopPropagation()
+                                          }
+                                        >
+                                          <button
+                                            type="button"
+                                            title="Edit card"
+                                            onClick={() =>
+                                              startEditingCard(card)
+                                            }
+                                            className="rounded-lg p-1.5 text-[#89968F] transition hover:bg-[#E9EEE9] hover:text-[#31574D]"
+                                          >
+                                            <Pencil size={14} />
+                                          </button>
+
+                                          <button
+                                            type="button"
+                                            title="Delete card"
+                                            onClick={() =>
+                                              handleDeleteCard(card)
+                                            }
+                                            className="rounded-lg p-1.5 text-[#89968F] transition hover:bg-[#FFF0EB] hover:text-[#B06450]"
+                                          >
+                                            <Trash2 size={14} />
+                                          </button>
+                                        </div>
+                                      </div>
+
+                                      <div className="mt-4 flex items-center justify-between gap-3">
+                                        <span
+                                          className={`rounded-full px-2.5 py-1 text-[9px] font-bold uppercase tracking-[0.12em] ${
+                                            card.priority === "high"
+                                              ? "bg-[#F7DDD4] text-[#A85A43]"
+                                              : card.priority === "low"
+                                                ? "bg-[#E4EDE8] text-[#5E8375]"
+                                                : "bg-[#ECE8DC] text-[#7A786C]"
+                                          }`}
+                                        >
+                                          {(card.priority || "medium")
+                                            .charAt(0)
+                                            .toUpperCase() +
+                                            (card.priority || "medium").slice(
+                                              1,
+                                            )}
+                                        </span>
+
+                                        <div className="flex items-center gap-1.5 text-[#9AA49F]">
+                                          <MessageSquare size={13} />
+
+                                          <span className="text-[10px] font-medium">
+                                            Open
+                                          </span>
+                                        </div>
+                                      </div>
+                                    </div>
+                                  )}
+                                </Draggable>
+                              ))}
+                            </div>
+
+                            {provided.placeholder}
+
+                            {(list.cards || []).length === 0 && (
+                              <div className="flex min-h-[100px] items-center justify-center rounded-[17px] border border-dashed border-[#D4CFC3] bg-[#F5F2EA]/60 px-4 text-center">
+                                <div>
+                                  <div className="mx-auto mb-2 flex h-7 w-7 items-center justify-center rounded-lg bg-[#E7E3D8] text-[#8B9892]">
+                                    <Plus size={13} />
+                                  </div>
+
+                                  <p className="text-xs font-semibold text-[#718079]">
+                                    No cards yet
+                                  </p>
+
+                                  <p className="mt-1 text-[10px] text-[#9AA49F]">
+                                    Add a card to get started.
+                                  </p>
+                                </div>
+                              </div>
+                            )}
+                          </div>
+
+                          {/* ADD CARD */}
+
+                          <div className="shrink-0 border-t border-[#DAD5C9] p-3">
+                            <button
+                              type="button"
+                              disabled={creatingCard}
+                              onClick={() => handleCreateCard(list._id)}
+                              className="flex w-full items-center justify-center gap-2 rounded-xl border border-transparent px-3 py-2.5 text-xs font-semibold text-[#687B73] transition hover:border-[#C9D4CE] hover:bg-[#F5F2EA] hover:text-[#31574D] disabled:opacity-50"
+                            >
+                              <Plus size={15} />
+
+                              {creatingCard ? "Creating..." : "Add card"}
+                            </button>
+                          </div>
+                        </div>
+                      )}
+                    </Droppable>
+                  ))
                 )}
 
                 {/* ADD LIST */}
 
                 <form
-                  onSubmit={
-                    handleCreateList
-                  }
-                  onClick={(event) =>
-                    event.stopPropagation()
-                  }
+                  onSubmit={handleCreateList}
+                  onClick={(event) => event.stopPropagation()}
                   className="w-[318px] shrink-0 rounded-[22px] border border-dashed border-[#C9C4B8] bg-[#EEEAE1]/55 p-4"
                 >
-
                   <div className="mb-4 flex items-center gap-3">
-
                     <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-[#E2E8E2] text-[#5E8375]">
                       <Plus size={16} />
                     </div>
@@ -2277,49 +1934,30 @@ async function handleDeleteComment(comment) {
                         Add another stage
                       </p>
                     </div>
-
                   </div>
 
                   <input
                     type="text"
                     value={listTitle}
-                    onChange={(event) =>
-                      setListTitle(
-                        event.target.value
-                      )
-                    }
+                    onChange={(event) => setListTitle(event.target.value)}
                     placeholder="List name"
-                    disabled={
-                      creatingList
-                    }
+                    disabled={creatingList}
                     className="w-full rounded-xl border border-[#D8D3C8] bg-[#FBF9F3] px-3.5 py-3 text-sm font-medium text-[#29453D] outline-none placeholder:text-[#A6ADA8] focus:border-[#86A79A] focus:ring-2 focus:ring-[#A8CFC1]/20"
                   />
 
                   <button
                     type="submit"
-                    disabled={
-                      creatingList ||
-                      !listTitle.trim()
-                    }
+                    disabled={creatingList || !listTitle.trim()}
                     className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl bg-[#31574D] px-3 py-3 text-xs font-bold text-[#F7EEDC] shadow-[0_8px_18px_rgba(49,87,77,0.12)] transition hover:-translate-y-0.5 hover:bg-[#284C43] disabled:cursor-not-allowed disabled:opacity-40"
                   >
-
                     <Plus size={15} />
 
-                    {creatingList
-                      ? "Adding..."
-                      : "Add list"}
-
+                    {creatingList ? "Adding..." : "Add list"}
                   </button>
-
                 </form>
-
               </div>
-
             </DragDropContext>
-
           </section>
-
         </main>
 
         {/* =====================================================
@@ -2335,20 +1973,13 @@ async function handleDeleteComment(comment) {
               }
             }}
           >
-
             <div
               className="w-full max-w-lg overflow-hidden rounded-[26px] border border-[#D8D3C7] bg-[#FBF9F3] shadow-[0_30px_80px_rgba(28,45,39,0.2)]"
-              onClick={(event) =>
-                event.stopPropagation()
-              }
+              onClick={(event) => event.stopPropagation()}
             >
-
               <div className="border-b border-[#E1DCD1] px-6 py-5">
-
                 <div className="flex items-center justify-between">
-
                   <div>
-
                     <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-[#7C9B8E]">
                       Card
                     </p>
@@ -2356,100 +1987,67 @@ async function handleDeleteComment(comment) {
                     <h2 className="mt-1 text-xl font-bold tracking-tight text-[#203C35]">
                       Edit card
                     </h2>
-
                   </div>
 
                   <button
                     type="button"
-                    disabled={
-                      savingCard
-                    }
-                    onClick={() =>
-                      setEditingCard(null)
-                    }
+                    disabled={savingCard}
+                    onClick={() => setEditingCard(null)}
                     className="rounded-xl p-2 text-[#87938E] transition hover:bg-[#EEEAE1] hover:text-[#203C35] disabled:opacity-50"
                   >
                     <X size={19} />
                   </button>
-
                 </div>
-
               </div>
 
               <div className="space-y-5 p-6">
-
                 <div>
-
                   <label className="mb-2 block text-xs font-bold uppercase tracking-[0.12em] text-[#74837D]">
                     Title
                   </label>
 
                   <input
                     type="text"
-                    value={
-                      editingCardTitle
-                    }
+                    value={editingCardTitle}
                     onChange={(event) =>
-                      setEditingCardTitle(
-                        event.target.value
-                      )
+                      setEditingCardTitle(event.target.value)
                     }
                     onKeyDown={(event) => {
-                      if (
-                        event.key ===
-                        "Enter"
-                      ) {
+                      if (event.key === "Enter") {
                         saveCardChanges();
                       }
 
-                      if (
-                        event.key ===
-                        "Escape"
-                      ) {
-                        setEditingCard(
-                          null
-                        );
+                      if (event.key === "Escape") {
+                        setEditingCard(null);
                       }
                     }}
                     autoFocus
                     className="w-full rounded-xl border border-[#D8D3C7] bg-white px-4 py-3 text-sm font-medium text-[#29453D] outline-none placeholder:text-[#A7AEAA] focus:border-[#7EA395] focus:ring-2 focus:ring-[#A8CFC1]/20"
                     placeholder="Card title"
                   />
-
                 </div>
 
                 <div>
-
                   <label className="mb-2 block text-xs font-bold uppercase tracking-[0.12em] text-[#74837D]">
                     Description
                   </label>
 
                   <textarea
-                    value={
-                      editingCardDescription
-                    }
+                    value={editingCardDescription}
                     onChange={(event) =>
-                      setEditingCardDescription(
-                        event.target.value
-                      )
+                      setEditingCardDescription(event.target.value)
                     }
                     rows={5}
                     className="w-full resize-none rounded-xl border border-[#D8D3C7] bg-white px-4 py-3 text-sm leading-6 text-[#29453D] outline-none placeholder:text-[#A7AEAA] focus:border-[#7EA395] focus:ring-2 focus:ring-[#A8CFC1]/20"
                     placeholder="Add a description..."
                   />
-
                 </div>
 
                 <div className="flex justify-end gap-3 border-t border-[#E7E2D8] pt-5">
-
                   <button
                     type="button"
-                    disabled={
-                      savingCard
-                    }
-                    onClick={() =>
-                      setEditingCard(null)
-                    }
+                    disabled={savingCard}
+                    onClick={() => setEditingCard(null)}
                     className="rounded-xl border border-[#D8D3C7] px-4 py-2.5 text-sm font-semibold text-[#718079] transition hover:bg-[#F0ECE3] hover:text-[#29453D] disabled:opacity-50"
                   >
                     Cancel
@@ -2457,26 +2055,15 @@ async function handleDeleteComment(comment) {
 
                   <button
                     type="button"
-                    disabled={
-                      savingCard ||
-                      !editingCardTitle.trim()
-                    }
-                    onClick={
-                      saveCardChanges
-                    }
+                    disabled={savingCard || !editingCardTitle.trim()}
+                    onClick={saveCardChanges}
                     className="rounded-xl bg-[#31574D] px-5 py-2.5 text-sm font-bold text-[#F7EEDC] shadow-[0_8px_18px_rgba(49,87,77,0.14)] transition hover:bg-[#284C43] disabled:cursor-not-allowed disabled:opacity-40"
                   >
-                    {savingCard
-                      ? "Saving..."
-                      : "Save changes"}
+                    {savingCard ? "Saving..." : "Save changes"}
                   </button>
-
                 </div>
-
               </div>
-
             </div>
-
           </div>
         )}
 
@@ -2495,24 +2082,16 @@ async function handleDeleteComment(comment) {
               setActiveCard(null);
             }}
           >
-
             <div
               className="flex max-h-[90vh] w-full max-w-2xl flex-col overflow-hidden rounded-[28px] border border-[#D8D3C7] bg-[#FBF9F3] shadow-[0_30px_80px_rgba(28,45,39,0.2)]"
-              onClick={(event) =>
-                event.stopPropagation()
-              }
+              onClick={(event) => event.stopPropagation()}
             >
-
               {/* HEADER */}
 
               <div className="shrink-0 border-b border-[#E1DCD1] px-6 py-5">
-
                 <div className="flex items-start justify-between gap-5">
-
                   <div className="min-w-0">
-
                     <div className="mb-2 flex items-center gap-2">
-
                       <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-[#E2EAE5] text-[#5E8375]">
                         <MessageSquare size={14} />
                       </span>
@@ -2520,7 +2099,6 @@ async function handleDeleteComment(comment) {
                       <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-[#789389]">
                         Card details
                       </p>
-
                     </div>
 
                     <h2 className="break-words text-xl font-bold tracking-tight text-[#203C35]">
@@ -2530,7 +2108,6 @@ async function handleDeleteComment(comment) {
                     <p className="mt-1 text-sm text-[#7C8983]">
                       Collaborate with your team on this card.
                     </p>
-
                   </div>
 
                   <button
@@ -2544,19 +2121,14 @@ async function handleDeleteComment(comment) {
                   >
                     <X size={19} />
                   </button>
-
                 </div>
-
               </div>
 
               {/* PRIORITY */}
 
               <div className="shrink-0 border-b border-[#E1DCD1] bg-[#F6F3EB] px-6 py-5">
-
                 <div className="flex items-center justify-between gap-4">
-
                   <div>
-
                     <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-[#7A8A83]">
                       Priority
                     </p>
@@ -2564,61 +2136,70 @@ async function handleDeleteComment(comment) {
                     <p className="mt-1 text-sm text-[#74827C]">
                       Set the urgency of this card.
                     </p>
+                  </div>
 
+                  <select
+                    value={activeCard.priority || "medium"}
+                    onChange={handlePriorityChange}
+                    disabled={savingPriority}
+                    className="rounded-xl border border-[#D4D0C5] bg-[#FBF9F3] px-3 py-2.5 text-sm font-semibold text-[#31574D] outline-none transition focus:border-[#7EA395] disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    <option value="low">Low</option>
+
+                    <option value="medium">Medium</option>
+
+                    <option value="high">High</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* ASSIGNEE */}
+
+              <div className="shrink-0 border-b border-[#E1DCD1] bg-[#F6F3EB] px-6 py-5">
+                <div className="flex items-center justify-between gap-4">
+                  <div>
+                    <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-[#7A8A83]">
+                      Assignee
+                    </p>
+
+                    <p className="mt-1 text-sm text-[#74827C]">
+                      Choose who is responsible for this card.
+                    </p>
                   </div>
 
                   <select
                     value={
-                      activeCard.priority ||
-                      "medium"
+                      activeCard.assignee?._id || activeCard.assignee || ""
                     }
-                    onChange={
-                      handlePriorityChange
-                    }
-                    disabled={
-                      savingPriority
-                    }
-                    className="rounded-xl border border-[#D4D0C5] bg-[#FBF9F3] px-3 py-2.5 text-sm font-semibold text-[#31574D] outline-none transition focus:border-[#7EA395] disabled:cursor-not-allowed disabled:opacity-50"
+                    onChange={handleAssigneeChange}
+                    disabled={savingAssignee}
+                    className="max-w-[190px] rounded-xl border border-[#D4D0C5] bg-[#FBF9F3] px-3 py-2.5 text-sm font-semibold text-[#31574D] outline-none transition focus:border-[#7EA395] disabled:cursor-not-allowed disabled:opacity-50"
                   >
-                    <option value="low">
-                      Low
-                    </option>
+                    <option value="">Unassigned</option>
 
-                    <option value="medium">
-                      Medium
-                    </option>
-
-                    <option value="high">
-                      High
-                    </option>
+                    {(board?.workspace?.members || []).map((member) => (
+                      <option key={member._id} value={member._id}>
+                        {member.name}
+                      </option>
+                    ))}
                   </select>
-
                 </div>
-
               </div>
 
               {/* COMMENTS */}
 
               <div className="min-h-0 flex-1 overflow-y-auto p-6">
-
                 <div className="mb-4 flex items-center gap-2">
-
-                  <h3 className="text-sm font-bold text-[#29453D]">
-                    Comments
-                  </h3>
+                  <h3 className="text-sm font-bold text-[#29453D]">Comments</h3>
 
                   <span className="rounded-full bg-[#E8E3D9] px-2 py-0.5 text-[10px] font-bold text-[#718079]">
                     {comments.length}
                   </span>
-
                 </div>
 
                 <div className="space-y-3">
-
                   {comments.length === 0 ? (
-
                     <div className="rounded-2xl border border-dashed border-[#D7D2C6] bg-[#F6F3EB] py-10 text-center">
-
                       <div className="mx-auto mb-3 flex h-10 w-10 items-center justify-center rounded-xl bg-[#E7ECE7] text-[#83958D]">
                         <MessageSquare size={19} />
                       </div>
@@ -2630,28 +2211,23 @@ async function handleDeleteComment(comment) {
                       <p className="mt-1 text-xs text-[#9AA49F]">
                         Start the conversation.
                       </p>
-
                     </div>
-
                   ) : (
-
-                    comments.map(
-                      (item) => (
-
-                        <div
+                    comments.map((item) => (
+                      <div
                         key={item._id}
                         className="rounded-xl border border-slate-700/70 bg-green-800/80 p-4 transition-colors hover:border-slate-600/80 hover:bg-green-800/60"
                       >
                         {(() => {
                           const currentUserId = String(
-                            user?._id || user?.id || ""
+                            user?._id || user?.id || "",
                           );
 
                           const authorId = String(
                             item.author?._id ||
                               item.author?.id ||
                               item.author ||
-                              ""
+                              "",
                           );
 
                           const isOwnComment =
@@ -2660,8 +2236,7 @@ async function handleDeleteComment(comment) {
                             currentUserId === authorId;
 
                           const isEditing =
-                            String(editingComment) ===
-                            String(item._id);
+                            String(editingComment) === String(item._id);
 
                           return (
                             <>
@@ -2692,9 +2267,7 @@ async function handleDeleteComment(comment) {
                                   <div className="flex shrink-0 items-center gap-1">
                                     <button
                                       type="button"
-                                      onClick={() =>
-                                        startEditingComment(item)
-                                      }
+                                      onClick={() => startEditingComment(item)}
                                       className="rounded-lg p-1.5 text-slate-600 transition hover:bg-slate-800 hover:text-slate-200"
                                       title="Edit comment"
                                     >
@@ -2703,12 +2276,8 @@ async function handleDeleteComment(comment) {
 
                                     <button
                                       type="button"
-                                      onClick={() =>
-                                        handleDeleteComment(item)
-                                      }
-                                      disabled={
-                                        deletingComment === item._id
-                                      }
+                                      onClick={() => handleDeleteComment(item)}
+                                      disabled={deletingComment === item._id}
                                       className="rounded-lg p-1.5 text-slate-600 transition hover:bg-red-500/10 hover:text-red-400 disabled:cursor-not-allowed disabled:opacity-40"
                                       title="Delete comment"
                                     >
@@ -2726,14 +2295,10 @@ async function handleDeleteComment(comment) {
                                     autoFocus
                                     value={editingCommentText}
                                     onChange={(event) =>
-                                      setEditingCommentText(
-                                        event.target.value
-                                      )
+                                      setEditingCommentText(event.target.value)
                                     }
                                     onKeyDown={(event) => {
-                                      if (
-                                        event.key === "Escape"
-                                      ) {
+                                      if (event.key === "Escape") {
                                         cancelEditingComment();
                                       }
 
@@ -2759,9 +2324,7 @@ async function handleDeleteComment(comment) {
                                       <button
                                         type="button"
                                         disabled={savingComment}
-                                        onClick={
-                                          cancelEditingComment
-                                        }
+                                        onClick={cancelEditingComment}
                                         className="rounded-lg border border-slate-800 px-3 py-1.5 text-xs font-medium text-slate-400 transition hover:bg-slate-800 hover:text-white disabled:opacity-40"
                                       >
                                         Cancel
@@ -2773,14 +2336,10 @@ async function handleDeleteComment(comment) {
                                           savingComment ||
                                           !editingCommentText.trim()
                                         }
-                                        onClick={() =>
-                                          saveCommentEdit(item)
-                                        }
+                                        onClick={() => saveCommentEdit(item)}
                                         className="rounded-lg bg-indigo-600 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-indigo-500 disabled:cursor-not-allowed disabled:opacity-40"
                                       >
-                                        {savingComment
-                                          ? "Saving..."
-                                          : "Save"}
+                                        {savingComment ? "Saving..." : "Save"}
                                       </button>
                                     </div>
                                   </div>
@@ -2794,91 +2353,55 @@ async function handleDeleteComment(comment) {
                           );
                         })()}
                       </div>
-                      )
-                    )
+                    ))
                   )}
-
                 </div>
 
                 {/* TYPING */}
 
-                {Object.values(
-                  typingUsers
-                ).length > 0 && (
-
+                {Object.values(typingUsers).length > 0 && (
                   <div className="mt-4 flex min-h-5 items-center gap-2 text-xs text-[#7E8D86]">
-
                     <span className="flex items-center gap-1">
-
                       <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-[#6F9D8D]" />
 
                       <span
                         className="h-1.5 w-1.5 animate-bounce rounded-full bg-[#6F9D8D]"
                         style={{
-                          animationDelay:
-                            "120ms",
+                          animationDelay: "120ms",
                         }}
                       />
 
                       <span
                         className="h-1.5 w-1.5 animate-bounce rounded-full bg-[#6F9D8D]"
                         style={{
-                          animationDelay:
-                            "240ms",
+                          animationDelay: "240ms",
                         }}
                       />
-
                     </span>
 
                     <span>
-
-                      {Object.values(
-                        typingUsers
-                      )
+                      {Object.values(typingUsers)
                         .slice(0, 2)
-                        .map(
-                          (item) =>
-                            item.name
-                        )
+                        .map((item) => item.name)
                         .join(" and ")}
-
-                      {Object.values(
-                        typingUsers
-                      ).length > 2
+                      {Object.values(typingUsers).length > 2
                         ? " and others"
                         : ""}{" "}
-
-                      {Object.values(
-                        typingUsers
-                      ).length === 1
-                        ? "is"
-                        : "are"}{" "}
+                      {Object.values(typingUsers).length === 1 ? "is" : "are"}{" "}
                       typing...
-
                     </span>
-
                   </div>
                 )}
 
                 {/* COMMENT INPUT */}
 
                 <div className="mt-5 flex gap-2">
-
                   <input
-                    value={
-                      commentText
-                    }
-                    onChange={
-                      handleCommentInputChange
-                    }
-                    onBlur={
-                      stopTyping
-                    }
+                    value={commentText}
+                    onChange={handleCommentInputChange}
+                    onBlur={stopTyping}
                     onKeyDown={(event) => {
-                      if (
-                        event.key ===
-                        "Enter"
-                      ) {
+                      if (event.key === "Enter") {
                         handleAddComment();
                       }
                     }}
@@ -2888,26 +2411,17 @@ async function handleDeleteComment(comment) {
 
                   <button
                     type="button"
-                    onClick={
-                      handleAddComment
-                    }
-                    disabled={
-                      !commentText.trim()
-                    }
+                    onClick={handleAddComment}
+                    disabled={!commentText.trim()}
                     className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-[#31574D] text-[#F7EEDC] shadow-[0_8px_18px_rgba(49,87,77,0.13)] transition hover:bg-[#284C43] disabled:cursor-not-allowed disabled:opacity-40"
                   >
                     <Send size={17} />
                   </button>
-
                 </div>
-
               </div>
-
             </div>
-
           </div>
         )}
-
       </div>
 
       <style>{`

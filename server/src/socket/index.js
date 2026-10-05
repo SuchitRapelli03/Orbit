@@ -8,22 +8,14 @@ import Workspace from "../models/Workspace.js";
 export function createSocketServer(httpServer) {
   const io = new Server(httpServer, {
     cors: {
-      origin:
-        process.env.CLIENT_URL ||
-        "http://localhost:5173",
+      origin: process.env.CLIENT_URL || "http://localhost:5173",
 
-      methods: [
-        "GET",
-        "POST",
-      ],
+      methods: ["GET", "POST"],
 
       credentials: true,
     },
 
-    transports: [
-      "websocket",
-      "polling",
-    ],
+    transports: ["websocket", "polling"],
   });
 
   // ==========================================================
@@ -32,53 +24,27 @@ export function createSocketServer(httpServer) {
 
   io.use(async (socket, next) => {
     try {
-      const token =
-        socket.handshake.auth?.token;
+      const token = socket.handshake.auth?.token;
 
       if (!token) {
-        return next(
-          new Error(
-            "Authentication required"
-          )
-        );
+        return next(new Error("Authentication required"));
       }
 
-      const payload =
-        jwt.verify(
-          token,
-          process.env.JWT_SECRET
-        );
+      const payload = jwt.verify(token, process.env.JWT_SECRET);
 
-      const user =
-        await User.findById(
-          payload.userId
-        ).select(
-          "name email"
-        );
+      const user = await User.findById(payload.userId).select("name email");
 
       if (!user) {
-        return next(
-          new Error(
-            "User not found"
-          )
-        );
+        return next(new Error("User not found"));
       }
 
       socket.user = user;
 
       next();
-
     } catch (error) {
-      console.error(
-        "Socket authentication failed:",
-        error.message
-      );
+      console.error("Socket authentication failed:", error.message);
 
-      next(
-        new Error(
-          "Invalid socket authentication"
-        )
-      );
+      next(new Error("Invalid socket authentication"));
     }
   });
 
@@ -86,406 +52,240 @@ export function createSocketServer(httpServer) {
   // CONNECTION
   // ==========================================================
 
-  io.on(
-    "connection",
-    (socket) => {
+  io.on("connection", (socket) => {
+    console.log(`Socket connected: ${socket.user.name} (${socket.id})`);
 
-      console.log(
-        `Socket connected: ${socket.user.name} (${socket.id})`
-      );
+    console.log("Joining notification room:", `user:${socket.user._id}`);
 
-      socket.join(`user:${socket.user._id}`);
+    socket.join(`user:${socket.user._id}`);
 
-      // ========================================================
-      // JOIN BOARD
-      // ========================================================
+    // ========================================================
+    // JOIN BOARD
+    // ========================================================
 
-      socket.on(
-        "board:join",
-        async (boardId) => {
-          try {
-
-            if (
-              typeof boardId !==
-              "string"
-            ) {
-              return socket.emit(
-                "board:error",
-                {
-                  message:
-                    "Invalid board ID",
-                }
-              );
-            }
-
-            // --------------------------------------------------
-            // Find board
-            // --------------------------------------------------
-
-            const board =
-              await Board.findById(
-                boardId
-              ).select(
-                "_id workspace members"
-              );
-
-            if (!board) {
-              return socket.emit(
-                "board:error",
-                {
-                  message:
-                    "Board not found",
-                }
-              );
-            }
-
-            // --------------------------------------------------
-            // Verify workspace membership
-            // --------------------------------------------------
-
-            const workspace =
-              await Workspace.findOne({
-                _id:
-                  board.workspace,
-
-                members:
-                  socket.user._id,
-              }).select(
-                "_id"
-              );
-
-            if (!workspace) {
-              return socket.emit(
-                "board:error",
-                {
-                  message:
-                    "Workspace access denied",
-                }
-              );
-            }
-
-            // --------------------------------------------------
-            // Workspace members automatically get
-            // access to existing boards.
-            // --------------------------------------------------
-
-            const isBoardMember =
-              board.members?.some(
-                (memberId) =>
-                  String(memberId) ===
-                  String(
-                    socket.user._id
-                  )
-              );
-
-            if (!isBoardMember) {
-
-              await Board.updateOne(
-                {
-                  _id:
-                    board._id,
-
-                  workspace:
-                    board.workspace,
-                },
-
-                {
-                  $addToSet: {
-                    members:
-                      socket.user._id,
-                  },
-                }
-              );
-
-              console.log(
-                `${socket.user.name} added to board ${boardId}`
-              );
-            }
-
-            // --------------------------------------------------
-            // Join board room
-            // --------------------------------------------------
-
-            const boardRoom =
-              `board:${boardId}`;
-
-            socket.join(
-              boardRoom
-            );
-
-            // --------------------------------------------------
-            // Send current board presence
-            // to the newly joined user.
-            // --------------------------------------------------
-
-            const roomSocketIds =
-              io.sockets.adapter.rooms.get(
-                boardRoom
-              ) || new Set();
-
-            const onlineMembers = [];
-
-            for (const socketId of roomSocketIds) {
-
-              const memberSocket =
-                io.sockets.sockets.get(
-                  socketId
-                );
-
-              if (
-                !memberSocket?.user
-              ) {
-                continue;
-              }
-
-              onlineMembers.push({
-                userId:
-                  memberSocket.user._id.toString(),
-
-                name:
-                  memberSocket.user.name,
-              });
-            }
-
-            socket.emit(
-              "presence:list",
-              onlineMembers
-            );
-
-            // --------------------------------------------------
-            // Join workspace room
-            // --------------------------------------------------
-
-            const workspaceRoom =
-              `workspace:${board.workspace}`;
-
-            socket.join(
-              workspaceRoom
-            );
-
-            // --------------------------------------------------
-            // Notify other board users
-            // --------------------------------------------------
-
-            socket
-              .to(boardRoom)
-              .emit(
-                "presence:joined",
-                {
-                  userId:
-                    socket.user._id.toString(),
-
-                  name:
-                    socket.user.name,
-                }
-              );
-
-            console.log(
-              `${socket.user.name} joined board ${boardId}`
-            );
-
-          } catch (error) {
-
-            console.error(
-              "Board join failed:",
-              error.message
-            );
-
-            socket.emit(
-              "board:error",
-              {
-                message:
-                  "Unable to join board",
-              }
-            );
-          }
+    socket.on("board:join", async (boardId) => {
+      try {
+        if (typeof boardId !== "string") {
+          return socket.emit("board:error", {
+            message: "Invalid board ID",
+          });
         }
-      );
 
-      // ========================================================
-      // LEAVE BOARD
-      // ========================================================
+        // --------------------------------------------------
+        // Find board
+        // --------------------------------------------------
 
-      socket.on(
-        "board:leave",
-        async (boardId) => {
+        const board = await Board.findById(boardId).select(
+          "_id workspace members",
+        );
 
-          try {
+        if (!board) {
+          return socket.emit("board:error", {
+            message: "Board not found",
+          });
+        }
 
-            if (
-              typeof boardId !==
-              "string"
-            ) {
-              return;
-            }
+        // --------------------------------------------------
+        // Verify workspace membership
+        // --------------------------------------------------
 
-            const board =
-              await Board.findById(
-                boardId
-              ).select(
-                "_id workspace"
-              );
+        const workspace = await Workspace.findOne({
+          _id: board.workspace,
 
-            const boardRoom =
-              `board:${boardId}`;
+          members: socket.user._id,
+        }).select("_id");
 
-            socket
-              .to(boardRoom)
-              .emit(
-                "presence:left",
-                {
-                  userId:
-                    socket.user._id.toString(),
-                }
-              );
+        if (!workspace) {
+          return socket.emit("board:error", {
+            message: "Workspace access denied",
+          });
+        }
 
-            socket.leave(
-              boardRoom
-            );
+        // --------------------------------------------------
+        // Workspace members automatically get
+        // access to existing boards.
+        // --------------------------------------------------
 
-            /*
+        const isBoardMember = board.members?.some(
+          (memberId) => String(memberId) === String(socket.user._id),
+        );
+
+        if (!isBoardMember) {
+          await Board.updateOne(
+            {
+              _id: board._id,
+
+              workspace: board.workspace,
+            },
+
+            {
+              $addToSet: {
+                members: socket.user._id,
+              },
+            },
+          );
+
+          console.log(`${socket.user.name} added to board ${boardId}`);
+        }
+
+        // --------------------------------------------------
+        // Join board room
+        // --------------------------------------------------
+
+        const boardRoom = `board:${boardId}`;
+
+        socket.join(boardRoom);
+
+        // --------------------------------------------------
+        // Send current board presence
+        // to the newly joined user.
+        // --------------------------------------------------
+
+        const roomSocketIds =
+          io.sockets.adapter.rooms.get(boardRoom) || new Set();
+
+        const onlineMembers = [];
+
+        for (const socketId of roomSocketIds) {
+          const memberSocket = io.sockets.sockets.get(socketId);
+
+          if (!memberSocket?.user) {
+            continue;
+          }
+
+          onlineMembers.push({
+            userId: memberSocket.user._id.toString(),
+
+            name: memberSocket.user.name,
+          });
+        }
+
+        socket.emit("presence:list", onlineMembers);
+
+        // --------------------------------------------------
+        // Join workspace room
+        // --------------------------------------------------
+
+        const workspaceRoom = `workspace:${board.workspace}`;
+
+        socket.join(workspaceRoom);
+
+        // --------------------------------------------------
+        // Notify other board users
+        // --------------------------------------------------
+
+        socket.to(boardRoom).emit("presence:joined", {
+          userId: socket.user._id.toString(),
+
+          name: socket.user.name,
+        });
+
+        console.log(`${socket.user.name} joined board ${boardId}`);
+      } catch (error) {
+        console.error("Board join failed:", error.message);
+
+        socket.emit("board:error", {
+          message: "Unable to join board",
+        });
+      }
+    });
+
+    // ========================================================
+    // LEAVE BOARD
+    // ========================================================
+
+    socket.on("board:leave", async (boardId) => {
+      try {
+        if (typeof boardId !== "string") {
+          return;
+        }
+
+        const board = await Board.findById(boardId).select("_id workspace");
+
+        const boardRoom = `board:${boardId}`;
+
+        socket.to(boardRoom).emit("presence:left", {
+          userId: socket.user._id.toString(),
+        });
+
+        socket.leave(boardRoom);
+
+        /*
               Keep workspace room available.
               This prevents workspace realtime
               updates from being lost.
             */
+      } catch (error) {
+        console.error("Board leave failed:", error.message);
+      }
+    });
 
-          } catch (error) {
+    // ========================================================
+    // TYPING START
+    // ========================================================
 
-            console.error(
-              "Board leave failed:",
-              error.message
-            );
-          }
+    socket.on("typing:start", ({ boardId }) => {
+      if (typeof boardId !== "string") {
+        return;
+      }
+
+      const room = `board:${boardId}`;
+
+      if (!socket.rooms.has(room)) {
+        return;
+      }
+
+      socket.to(room).emit("typing:start", {
+        userId: socket.user._id.toString(),
+
+        name: socket.user.name,
+      });
+    });
+
+    // ========================================================
+    // TYPING STOP
+    // ========================================================
+
+    socket.on("typing:stop", ({ boardId }) => {
+      if (typeof boardId !== "string") {
+        return;
+      }
+
+      const room = `board:${boardId}`;
+
+      if (!socket.rooms.has(room)) {
+        return;
+      }
+
+      socket.to(room).emit("typing:stop", {
+        userId: socket.user._id.toString(),
+      });
+    });
+
+    // ========================================================
+    // DISCONNECTING
+    // ========================================================
+
+    socket.on("disconnecting", () => {
+      for (const room of socket.rooms) {
+        if (!room.startsWith("board:")) {
+          continue;
         }
-      );
 
-      // ========================================================
-      // TYPING START
-      // ========================================================
+        socket.to(room).emit("presence:left", {
+          userId: socket.user._id.toString(),
+        });
+      }
+    });
 
-      socket.on(
-        "typing:start",
-        ({ boardId }) => {
+    // ========================================================
+    // DISCONNECT
+    // ========================================================
 
-          if (
-            typeof boardId !==
-            "string"
-          ) {
-            return;
-          }
-
-          const room =
-            `board:${boardId}`;
-
-          if (
-            !socket.rooms.has(
-              room
-            )
-          ) {
-            return;
-          }
-
-          socket
-            .to(room)
-            .emit(
-              "typing:start",
-              {
-                userId:
-                  socket.user._id.toString(),
-
-                name:
-                  socket.user.name,
-              }
-            );
-        }
-      );
-
-      // ========================================================
-      // TYPING STOP
-      // ========================================================
-
-      socket.on(
-        "typing:stop",
-        ({ boardId }) => {
-
-          if (
-            typeof boardId !==
-            "string"
-          ) {
-            return;
-          }
-
-          const room =
-            `board:${boardId}`;
-
-          if (
-            !socket.rooms.has(
-              room
-            )
-          ) {
-            return;
-          }
-
-          socket
-            .to(room)
-            .emit(
-              "typing:stop",
-              {
-                userId:
-                  socket.user._id.toString(),
-              }
-            );
-        }
-      );
-
-      // ========================================================
-      // DISCONNECTING
-      // ========================================================
-
-      socket.on(
-        "disconnecting",
-        () => {
-
-          for (const room of socket.rooms) {
-
-            if (
-              !room.startsWith(
-                "board:"
-              )
-            ) {
-              continue;
-            }
-
-            socket
-              .to(room)
-              .emit(
-                "presence:left",
-                {
-                  userId:
-                    socket.user._id.toString(),
-                }
-              );
-          }
-        }
-      );
-
-      // ========================================================
-      // DISCONNECT
-      // ========================================================
-
-      socket.on(
-        "disconnect",
-        (reason) => {
-
-          console.log(
-            `Socket disconnected: ${socket.id} (${reason})`
-          );
-
-        }
-      );
-
-    }
-  );
+    socket.on("disconnect", (reason) => {
+      console.log(`Socket disconnected: ${socket.id} (${reason})`);
+    });
+  });
 
   return io;
 }

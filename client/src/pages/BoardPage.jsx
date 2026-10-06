@@ -1337,8 +1337,10 @@ export default function BoardPage() {
                   </p>
 
                   <p className="mt-1 text-[11px] text-[#8FA9A0]">
-                    {lists.length} {lists.length === 1 ? "list" : "lists"}
-                  </p>
+  {lists.length} {lists.length === 1 ? "list" : "lists"}
+  {" • "}
+  {totalCardCount} {totalCardCount === 1 ? "card" : "cards"}
+</p>
                 </div>
               </div>
             </div>

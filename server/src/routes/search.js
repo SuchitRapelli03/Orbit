@@ -24,7 +24,8 @@ router.get("/tasks", async (req, res, next) => {
 
     const boards = await Board.find({
       members: req.user._id
-    }).select("_id");
+    })
+      .select("_id name");
 
     const boardIds = boards.map((board) => board._id);
 
@@ -34,9 +35,14 @@ router.get("/tasks", async (req, res, next) => {
 
     const accessibleLists = await List.find({
       board: { $in: boardIds }
-    }).select("_id");
+    })
+      .select("_id board title");
 
     const listIds = accessibleLists.map((list) => list._id);
+
+    if (!listIds.length) {
+      return res.json({ cards: [] });
+    }
 
     const cards = await Card.find({
       list: { $in: listIds },
@@ -45,6 +51,16 @@ router.get("/tasks", async (req, res, next) => {
         { description: regex }
       ]
     })
+      .populate({
+        path: "list",
+        select: "title board",
+        populate: {
+          path: "board",
+          select: "name"
+        }
+      })
+      .populate("assignee", "name email")
+      .sort({ updatedAt: -1 })
       .limit(100)
       .lean();
 

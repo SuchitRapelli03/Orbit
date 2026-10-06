@@ -15,6 +15,7 @@ import {
   ArrowUpRight,
   Sparkles,
   CircleDot,
+  Search,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import api from "../lib/api";
@@ -56,9 +57,11 @@ export default function Dashboard() {
   const [invitations, setInvitations] = useState([]);
 
   const [loading, setLoading] = useState(true);
-  const [loadingInvitations, setLoadingInvitations] = useState(true);
+  const [loadingInvitations, setLoadingInvitations] =
+    useState(true);
 
-  const [showWorkspaceMenu, setShowWorkspaceMenu] = useState(false);
+  const [showWorkspaceMenu, setShowWorkspaceMenu] =
+    useState(false);
   const [showCreateWorkspace, setShowCreateWorkspace] =
     useState(false);
   const [showCreateBoard, setShowCreateBoard] =
@@ -72,6 +75,17 @@ export default function Dashboard() {
 
   const [processingInvitation, setProcessingInvitation] =
     useState(null);
+
+  /* =========================
+     GLOBAL TASK SEARCH
+  ========================= */
+
+  const [taskSearch, setTaskSearch] = useState("");
+  const [taskResults, setTaskResults] = useState([]);
+  const [taskSearchLoading, setTaskSearchLoading] =
+    useState(false);
+  const [showTaskResults, setShowTaskResults] =
+    useState(false);
 
   /* =========================
      ORBIT NAVIGATION
@@ -171,6 +185,61 @@ export default function Dashboard() {
     loadWorkspaces();
     loadInvitations();
   }, []);
+
+  /* =========================
+     SEARCH TASKS
+  ========================= */
+
+  useEffect(() => {
+    const query = taskSearch.trim();
+
+    if (!query) {
+      setTaskResults([]);
+      setTaskSearchLoading(false);
+      return;
+    }
+
+    const timer = window.setTimeout(async () => {
+      try {
+        setTaskSearchLoading(true);
+
+        const { data } = await api.get(
+          "/search/tasks",
+          {
+            params: { q: query },
+          }
+        );
+
+        setTaskResults(data.cards || []);
+      } catch (error) {
+        console.error(
+          "Failed to search tasks:",
+          error
+        );
+
+        setTaskResults([]);
+      } finally {
+        setTaskSearchLoading(false);
+      }
+    }, 300);
+
+    return () => window.clearTimeout(timer);
+  }, [taskSearch]);
+
+  /* =========================
+     TASK SEARCH RESULT
+  ========================= */
+
+  const handleTaskResultClick = (card) => {
+    const boardId = card?.list?.board?._id;
+
+    if (!boardId) return;
+
+    setShowTaskResults(false);
+    setTaskSearch("");
+
+    navigate(`/boards/${boardId}`);
+  };
 
   /* =========================
      CREATE WORKSPACE
@@ -760,7 +829,7 @@ export default function Dashboard() {
         <div className="mx-auto max-w-[1440px] px-5 py-6 sm:px-8 lg:px-12 lg:py-10">
           {/* TOP BAR */}
 
-          <header className="mb-10 flex items-center justify-between gap-4">
+          <header className="mb-10 flex items-start justify-between gap-4">
             <div className="flex items-center gap-4">
               {!sidebarOpen && (
                 <div className="hidden h-10 w-10 items-center justify-center rounded-xl border border-[#DED8CC] bg-white/70 text-slate-400 sm:flex">
@@ -790,20 +859,126 @@ export default function Dashboard() {
               </div>
             </div>
 
-            <button
-              onClick={loadInvitations}
-              className="group flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-[#DED8CC] bg-white/75 text-slate-500 shadow-sm transition hover:border-cyan-300 hover:bg-white hover:text-cyan-700"
-              title="Refresh invitations"
-            >
-              <RefreshCw
-                size={17}
-                className={`transition-transform ${
-                  loadingInvitations
-                    ? "animate-spin"
-                    : "group-hover:rotate-180"
-                }`}
-              />
-            </button>
+            <div className="relative flex shrink-0 items-center gap-3">
+              {/* GLOBAL TASK SEARCH */}
+
+              <div className="relative hidden sm:block">
+                <div className="flex h-11 w-[260px] items-center rounded-xl border border-[#DED8CC] bg-white/80 shadow-sm transition focus-within:border-cyan-300 focus-within:ring-2 focus-within:ring-cyan-100">
+                  <Search
+                    size={17}
+                    className="ml-3 shrink-0 text-slate-400"
+                  />
+
+                  <input
+                    type="text"
+                    value={taskSearch}
+                    onFocus={() =>
+                      setShowTaskResults(true)
+                    }
+                    onChange={(event) => {
+                      setTaskSearch(event.target.value);
+                      setShowTaskResults(true);
+                    }}
+                    placeholder="Search tasks..."
+                    className="h-full w-full bg-transparent px-3 text-sm text-[#17201C] outline-none placeholder:text-slate-400"
+                  />
+
+                  {taskSearchLoading && (
+                    <div className="mr-3 h-4 w-4 shrink-0 animate-spin rounded-full border-2 border-slate-200 border-t-cyan-500" />
+                  )}
+                </div>
+
+                {showTaskResults &&
+                  taskSearch.trim() && (
+                    <div className="absolute right-0 top-[calc(100%+8px)] z-50 w-[360px] overflow-hidden rounded-2xl border border-[#DED8CC] bg-[#FBFAF6] shadow-xl">
+                      {taskSearchLoading ? (
+                        <div className="px-4 py-5 text-center text-sm text-slate-500">
+                          Searching your workspace...
+                        </div>
+                      ) : taskResults.length === 0 ? (
+                        <div className="px-4 py-5 text-center">
+                          <p className="text-sm font-medium text-[#17201C]">
+                            No tasks found
+                          </p>
+
+                          <p className="mt-1 text-xs text-slate-400">
+                            Try a different task name or description.
+                          </p>
+                        </div>
+                      ) : (
+                        <div className="max-h-[420px] overflow-y-auto py-2">
+                          {taskResults.map((card) => (
+                            <button
+                              key={card._id}
+                              type="button"
+                              onClick={() =>
+                                handleTaskResultClick(
+                                  card
+                                )
+                              }
+                              className="w-full px-4 py-3 text-left transition hover:bg-[#F2EEE4]"
+                            >
+                              <div className="flex items-start gap-3">
+                                <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[#DDF7F3] text-[#2F8F83]">
+                                  <FolderKanban
+                                    size={15}
+                                  />
+                                </div>
+
+                                <div className="min-w-0 flex-1">
+                                  <p className="truncate text-sm font-semibold text-[#17201C]">
+                                    {card.title}
+                                  </p>
+
+                                  <p className="mt-0.5 truncate text-xs text-slate-400">
+                                    {card.list?.board
+                                      ?.name ||
+                                      "Board"}
+                                    {" · "}
+                                    {card.list?.title ||
+                                      "List"}
+                                  </p>
+
+                                  {card.description && (
+                                    <p className="mt-1 line-clamp-2 text-xs leading-5 text-slate-500">
+                                      {card.description}
+                                    </p>
+                                  )}
+
+                                  {card.assignee?.name && (
+                                    <p className="mt-1.5 text-[11px] font-medium text-[#2F8F83]">
+                                      Assigned to{" "}
+                                      {
+                                        card.assignee
+                                          .name
+                                      }
+                                    </p>
+                                  )}
+                                </div>
+                              </div>
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
+              </div>
+
+              <button
+                onClick={loadInvitations}
+                className="group flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-[#DED8CC] bg-white/75 text-slate-500 shadow-sm transition hover:border-cyan-300 hover:bg-white hover:text-cyan-700"
+                title="Refresh invitations"
+              >
+                <RefreshCw
+                  size={17}
+                  className={`transition-transform ${
+                    loadingInvitations
+                      ? "animate-spin"
+                      : "group-hover:rotate-180"
+                  }`}
+                />
+              </button>
+            </div>
           </header>
 
           {/* INVITATIONS */}

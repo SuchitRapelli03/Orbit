@@ -7,4 +7,7 @@ const boardSchema = new mongoose.Schema({
   members: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }]
 }, { timestamps: true });
 
+boardSchema.index({ workspace: 1 });
+boardSchema.index({ members: 1 });
+
 export default mongoose.model("Board", boardSchema);

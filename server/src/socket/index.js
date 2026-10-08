@@ -195,31 +195,34 @@ export function createSocketServer(httpServer) {
     // ========================================================
 
     socket.on("board:leave", async (boardId) => {
-      try {
-        if (typeof boardId !== "string") {
-          return;
-        }
+  try {
+    if (typeof boardId !== "string") {
+      return;
+    }
 
-        const board = await Board.findById(boardId).select("_id workspace");
+    const boardRoom = `board:${boardId}`;
 
-        const boardRoom = `board:${boardId}`;
+    // Only allow a socket to leave a board room
+    // that it actually joined.
+    if (!socket.rooms.has(boardRoom)) {
+      return;
+    }
 
-        socket.to(boardRoom).emit("presence:left", {
-          userId: socket.user._id.toString(),
-        });
-
-        socket.leave(boardRoom);
-
-        /*
-              Keep workspace room available.
-              This prevents workspace realtime
-              updates from being lost.
-            */
-      } catch (error) {
-        console.error("Board leave failed:", error.message);
-      }
+    socket.to(boardRoom).emit("presence:left", {
+      userId: socket.user._id.toString(),
     });
 
+    socket.leave(boardRoom);
+
+    /*
+      Keep workspace room available.
+      This prevents workspace realtime
+      updates from being lost.
+    */
+  } catch (error) {
+    console.error("Board leave failed:", error.message);
+  }
+});
     // ========================================================
     // TYPING START
     // ========================================================

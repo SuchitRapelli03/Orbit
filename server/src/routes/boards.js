@@ -12,6 +12,47 @@ const router = Router();
 
 router.use(requireAuth);
 
+router.post("/", async (req, res, next) => {
+  try {
+    const { workspaceId, name } = req.body;
+
+    if (typeof workspaceId !== "string" || !workspaceId.trim()) {
+      return res.status(400).json({
+        message: "Workspace is required"
+      });
+    }
+
+    if (typeof name !== "string" || !name.trim()) {
+      return res.status(400).json({
+        message: "Board name is required"
+      });
+    }
+
+    const workspace = await Workspace.findOne({
+      _id: workspaceId,
+      members: req.user._id
+    });
+
+    if (!workspace) {
+      return res.status(403).json({
+        message: "Workspace access denied"
+      });
+    }
+
+    const board = await Board.create({
+      workspace: workspace._id,
+      name: name.trim(),
+      members: [req.user._id]
+    });
+
+    return res.status(201).json({
+      board
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
 router.get("/:boardId", async (req, res, next) => {
   try {
     const board = await Board.findById(req.params.boardId)

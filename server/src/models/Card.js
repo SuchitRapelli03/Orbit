@@ -10,4 +10,6 @@ const cardSchema = new mongoose.Schema({
   dueDate: Date
 }, { timestamps: true });
 
+cardSchema.index({ list: 1, position: 1 });
+
 export default mongoose.model("Card", cardSchema);

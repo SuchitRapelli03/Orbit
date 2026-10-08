@@ -51,6 +51,8 @@ const workspaceSchema = new mongoose.Schema(
   }
 );
 
+workspaceSchema.index({ members: 1 });
+
 const Workspace = mongoose.model(
   "Workspace",
   workspaceSchema

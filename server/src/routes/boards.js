@@ -1,38 +1,155 @@
 import { Router } from "express";
+
 import Board from "../models/Board.js";
 import List from "../models/List.js";
 import Card from "../models/Card.js";
 import Workspace from "../models/Workspace.js";
+
 import { requireAuth } from "../middleware/auth.js";
 import { getRedis } from "../utils/redis.js";
 
 const router = Router();
+
 router.use(requireAuth);
+
+router.post("/", async (req, res, next) => {
+  try {
+    const { workspaceId, name } = req.body;
+
+    if (typeof workspaceId !== "string" || !workspaceId.trim()) {
+      return res.status(400).json({
+        message: "Workspace is required"
+      });
+    }
+
+    if (typeof name !== "string" || !name.trim()) {
+      return res.status(400).json({
+        message: "Board name is required"
+      });
+    }
+
+    const workspace = await Workspace.findOne({
+      _id: workspaceId,
+      members: req.user._id
+    });
+
+    if (!workspace) {
+      return res.status(403).json({
+        message: "Workspace access denied"
+      });
+    }
+
+    const board = await Board.create({
+      workspace: workspace._id,
+      name: name.trim(),
+      members: [req.user._id]
+    });
+
+    return res.status(201).json({
+      board
+    });
+  } catch (error) {
+    next(error);
+  }
+});
 
 router.get("/:boardId", async (req, res, next) => {
   try {
+    const board = await Board.findById(req.params.boardId)
+      .populate({
+        path: "workspace",
+        select: "name members",
+        populate: {
+          path: "members",
+          select: "name email"
+        }
+      })
+      .lean();
+
+    if (!board) {
+      return res.status(404).json({
+        message: "Board not found"
+      });
+    }
+
+    const workspace = await Workspace.findOne({
+      _id: board.workspace._id,
+      members: req.user._id
+    });
+
+    if (!workspace) {
+      return res.status(403).json({
+        message: "Access denied"
+      });
+    }
+
     const redis = await getRedis();
     const key = `board:${req.params.boardId}`;
+
     if (redis) {
       const cached = await redis.get(key);
-      if (cached) return res.json({ board: JSON.parse(cached), cached: true });
+
+      if (cached) {
+        return res.json({
+          board: JSON.parse(cached),
+          cached: true
+        });
+      }
     }
 
-    const board = await Board.findById(req.params.boardId).populate("workspace", "name").lean();
-    if (!board) return res.status(404).json({ message: "Board not found" });
+    const lists = await List.find({
+      board: board._id
+    })
+      .sort({ position: 1 })
+      .lean();
 
-    const workspace = await Workspace.findOne({ _id: board.workspace._id, members: req.user._id });
-    if (!workspace) return res.status(403).json({ message: "Not a workspace member" });
+    const listIds = lists.map((list) => list._id);
 
-    const lists = await List.find({ board: board._id }).sort({ position: 1 }).lean();
+    const cards = listIds.length
+      ? await Card.find({
+          list: { $in: listIds }
+        })
+          .populate(
+            "assignee",
+            "name email"
+          )
+          .sort({ position: 1 })
+          .lean()
+      : [];
+
+    const cardsByList = new Map();
+
+    for (const card of cards) {
+      const listId = String(card.list);
+
+      if (!cardsByList.has(listId)) {
+        cardsByList.set(listId, []);
+      }
+
+      cardsByList.get(listId).push(card);
+    }
+
     for (const list of lists) {
-      list.cards = await Card.find({ list: list._id }).sort({ position: 1 }).lean();
+      list.cards = cardsByList.get(String(list._id)) || [];
     }
+
     board.lists = lists;
 
-    if (redis) await redis.set(key, JSON.stringify(board), { EX: 30 });
-    res.json({ board, cached: false });
-  } catch (e) { next(e); }
+    if (redis) {
+      await redis.set(
+        key,
+        JSON.stringify(board),
+        { EX: 30 }
+      );
+    }
+
+    return res.json({
+      board,
+      cached: false
+    });
+  } catch (error) {
+    next(error);
+  }
 });
 
 export default router;

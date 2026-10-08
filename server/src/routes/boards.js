@@ -12,6 +12,47 @@ const router = Router();
 
 router.use(requireAuth);
 
+router.post("/", async (req, res, next) => {
+  try {
+    const { workspaceId, name } = req.body;
+
+    if (typeof workspaceId !== "string" || !workspaceId.trim()) {
+      return res.status(400).json({
+        message: "Workspace is required"
+      });
+    }
+
+    if (typeof name !== "string" || !name.trim()) {
+      return res.status(400).json({
+        message: "Board name is required"
+      });
+    }
+
+    const workspace = await Workspace.findOne({
+      _id: workspaceId,
+      members: req.user._id
+    });
+
+    if (!workspace) {
+      return res.status(403).json({
+        message: "Workspace access denied"
+      });
+    }
+
+    const board = await Board.create({
+      workspace: workspace._id,
+      name: name.trim(),
+      members: [req.user._id]
+    });
+
+    return res.status(201).json({
+      board
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
 router.get("/:boardId", async (req, res, next) => {
   try {
     const board = await Board.findById(req.params.boardId)
@@ -62,16 +103,34 @@ router.get("/:boardId", async (req, res, next) => {
       .sort({ position: 1 })
       .lean();
 
+    const listIds = lists.map((list) => list._id);
+
+    const cards = listIds.length
+      ? await Card.find({
+          list: { $in: listIds }
+        })
+          .populate(
+            "assignee",
+            "name email"
+          )
+          .sort({ position: 1 })
+          .lean()
+      : [];
+
+    const cardsByList = new Map();
+
+    for (const card of cards) {
+      const listId = String(card.list);
+
+      if (!cardsByList.has(listId)) {
+        cardsByList.set(listId, []);
+      }
+
+      cardsByList.get(listId).push(card);
+    }
+
     for (const list of lists) {
-      list.cards = await Card.find({
-        list: list._id
-      })
-        .populate(
-          "assignee",
-          "name email"
-        )
-        .sort({ position: 1 })
-        .lean();
+      list.cards = cardsByList.get(String(list._id)) || [];
     }
 
     board.lists = lists;

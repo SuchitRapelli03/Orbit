@@ -33,12 +33,49 @@ router.get("/", async (req, res, next) => {
         )
         .lean();
 
+    const workspaceIds =
+      workspaces.map(
+        (workspace) =>
+          workspace._id
+      );
+
+    const boards =
+      workspaceIds.length
+        ? await Board.find({
+            workspace: {
+              $in: workspaceIds,
+            },
+          }).lean()
+        : [];
+
+    const boardsByWorkspace =
+      new Map();
+
+    for (const board of boards) {
+      const workspaceId =
+        String(board.workspace);
+
+      if (
+        !boardsByWorkspace.has(
+          workspaceId
+        )
+      ) {
+        boardsByWorkspace.set(
+          workspaceId,
+          []
+        );
+      }
+
+      boardsByWorkspace
+        .get(workspaceId)
+        .push(board);
+    }
+
     for (const workspace of workspaces) {
       workspace.boards =
-        await Board.find({
-          workspace:
-            workspace._id,
-        }).lean();
+        boardsByWorkspace.get(
+          String(workspace._id)
+        ) || [];
     }
 
     res.json({
@@ -48,7 +85,6 @@ router.get("/", async (req, res, next) => {
     next(error);
   }
 });
-
 
 // ============================================================
 // GET INVITATIONS FOR CURRENT USER

@@ -6,4 +6,6 @@ const listSchema = new mongoose.Schema({
   position: { type: Number, default: 0 }
 }, { timestamps: true });
 
+listSchema.index({ board: 1, position: 1 });
+
 export default mongoose.model("List", listSchema);

@@ -1601,11 +1601,11 @@ export default function BoardPage() {
                 </span>
 
                 <span className="hidden text-[11px] font-medium text-[#9AA49F] lg:inline">
-                  Updated{" "}
-                  {lastUpdated.toLocaleTimeString([], {
-                    hour: "2-digit",
-                    minute: "2-digit",
-                  })}
+                  Updated {" "}
+{lastUpdated.toLocaleTimeString([], {
+  hour: "2-digit",
+  minute: "2-digit",
+})}
                 </span>
 
                 <span className="rounded-full bg-[#E8E3D9] px-2.5 py-1 text-[10px] font-bold text-[#66756E]">

@@ -103,16 +103,34 @@ router.get("/:boardId", async (req, res, next) => {
       .sort({ position: 1 })
       .lean();
 
+    const listIds = lists.map((list) => list._id);
+
+    const cards = listIds.length
+      ? await Card.find({
+          list: { $in: listIds }
+        })
+          .populate(
+            "assignee",
+            "name email"
+          )
+          .sort({ position: 1 })
+          .lean()
+      : [];
+
+    const cardsByList = new Map();
+
+    for (const card of cards) {
+      const listId = String(card.list);
+
+      if (!cardsByList.has(listId)) {
+        cardsByList.set(listId, []);
+      }
+
+      cardsByList.get(listId).push(card);
+    }
+
     for (const list of lists) {
-      list.cards = await Card.find({
-        list: list._id
-      })
-        .populate(
-          "assignee",
-          "name email"
-        )
-        .sort({ position: 1 })
-        .lean();
+      list.cards = cardsByList.get(String(list._id)) || [];
     }
 
     board.lists = lists;
